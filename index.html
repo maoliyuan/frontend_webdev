@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>拼豆小店 · 座位管理</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- 顶部木牌栏 -->
+<header class="topbar">
+  <div class="shop-sign"><img src="assets/bean.png" style="width:22px;vertical-align:-4px"> <span id="shop-title">拼豆小店</span></div>
+  <nav class="tabs" id="tabs">
+    <button class="pbtn tab active" data-tab="seats">座位</button>
+    <button class="pbtn tab" data-tab="reserve">预约</button>
+    <button class="pbtn tab" data-tab="stock">豆仓</button>
+    <button class="pbtn tab" data-tab="settings">设置</button>
+  </nav>
+  <button class="pbtn pbtn-icon" id="btn-cat"><img src="assets/cat.png">开桌</button>
+  <button class="pbtn pbtn-icon" id="btn-dog"><img src="assets/dog.png">结账</button>
+  <button class="pbtn pbtn-danger" id="btn-clear-all">一键清座</button>
+</header>
+
+<!-- 模式提示条 -->
+<div id="mode-banner" class="mode-banner hidden">
+  <span id="mode-hint"></span>
+  <button class="pbtn pbtn-sm pbtn-green" id="mode-ok">确定</button>
+  <button class="pbtn pbtn-sm pbtn-cream" id="mode-cancel">取消</button>
+</div>
+
+<div class="main-wrap">
+
+  <!-- 房间视图 -->
+  <section id="page-seats" class="page-panel">
+    <div class="room-frame">
+      <div id="room"><!-- JS 生成地板/家具/人物 --></div>
+    </div>
+    <div class="legend">
+      <span><i class="dot dot-free"></i>空闲</span>
+      <span><i class="dot dot-ok"></i>营业中</span>
+      <span><i class="dot dot-warn"></i>即将到时(&lt;15分钟)</span>
+      <span><i class="dot dot-over"></i>已到时</span>
+    </div>
+  </section>
+
+  <!-- 在店批次侧栏 -->
+  <aside id="sidebar">
+    <div class="side-title">在店批次</div>
+    <div id="group-list"></div>
+  </aside>
+
+  <!-- 预约 -->
+  <section id="page-reserve" class="page-panel hidden sub-panel">
+    <div class="panel-head">
+      <span class="side-title">预约登记</span>
+      <button class="pbtn pbtn-gold" id="btn-add-reserve">新增预约</button>
+    </div>
+    <div id="reserve-list" class="card-list"></div>
+  </section>
+
+  <!-- 豆仓 -->
+  <section id="page-stock" class="page-panel hidden sub-panel">
+    <div class="panel-head">
+      <span class="side-title">豆豆库存</span>
+      <button class="pbtn pbtn-gold" id="btn-add-stock">添加品类</button>
+    </div>
+    <div id="stock-list" class="card-list"></div>
+  </section>
+
+  <!-- 设置 -->
+  <section id="page-settings" class="page-panel hidden sub-panel">
+    <span class="side-title">店铺设置</span>
+    <div class="settings-card">
+      <label class="field"><span>每小时价格（元/人）</span>
+        <input type="number" id="set-price" min="0" step="1"></label>
+      <label class="field"><span>最小开桌时间（分钟，提前走不退）</span>
+        <input type="number" id="set-min-start" min="0" step="10"></label>
+      <label class="field"><span>加钟最小单位（分钟）</span>
+        <input type="number" id="set-min-extend" min="1" step="5"></label>
+      <label class="field"><span>店铺名称</span>
+        <input type="text" id="set-shop-name"></label>
+      <div class="settings-actions">
+        <button class="pbtn" id="btn-export">导出数据</button>
+        <button class="pbtn" id="btn-import">导入数据</button>
+        <button class="pbtn pbtn-danger" id="btn-reset">清空所有数据</button>
+      </div>
+      <input type="file" id="import-file" accept=".json" class="hidden">
+    </div>
+  </section>
+
+</div>
+
+<!-- 通用弹窗 -->
+<div id="modal-mask" class="modal-mask hidden">
+  <div class="modal">
+    <div class="modal-title" id="modal-title"></div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-actions" id="modal-actions"></div>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
