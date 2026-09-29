@@ -5,45 +5,47 @@
   'use strict';
 
   /* ================= 店面布局配置 ================= */
+  /* 真实店面：靠墙一排 6 个单人桌 + 两大排 2×6 长桌 = 30 个位置 */
   var ROOM_W = 416, ROOM_H = 304;
 
   var FURNITURE = [
-    { img: 'counter.png', x: 32, y: 20, w: 144, h: 20 },
-    { img: 'rug.png', x: 216, y: 104, w: 128, h: 80 },
-    { img: 'table_big.png', x: 232, y: 120, w: 96, h: 48 },
-    { img: 'table_small.png', x: 48, y: 104, w: 32, h: 32 },
-    { img: 'table_small.png', x: 48, y: 192, w: 32, h: 32 },
-    { img: 'table_small.png', x: 336, y: 104, w: 32, h: 32 },
-    { img: 'table_small.png', x: 336, y: 192, w: 32, h: 32 },
-    { img: 'plant.png', x: 8, y: 248, w: 16, h: 20 },
-    { img: 'plant.png', x: 390, y: 248, w: 16, h: 20 },
+    // 靠墙单人桌 ×6
+    { img: 'desk_single.png', x: 23, y: 24, w: 26, h: 22 },
+    { img: 'desk_single.png', x: 87, y: 24, w: 26, h: 22 },
+    { img: 'desk_single.png', x: 151, y: 24, w: 26, h: 22 },
+    { img: 'desk_single.png', x: 215, y: 24, w: 26, h: 22 },
+    { img: 'desk_single.png', x: 279, y: 24, w: 26, h: 22 },
+    { img: 'desk_single.png', x: 343, y: 24, w: 26, h: 22 },
+    // 两排 2×6 白色塑料长桌
+    { img: 'table_long.png', x: 108, y: 116, w: 200, h: 28 },
+    { img: 'table_long.png', x: 108, y: 214, w: 200, h: 28 },
+    { img: 'plant.png', x: 8, y: 268, w: 16, h: 20 },
+    { img: 'plant.png', x: 390, y: 268, w: 16, h: 20 },
     { img: 'mat.png', x: 192, y: 286, w: 32, h: 12 }
   ];
 
   var SEATS = [];
   var i;
-  var counterX = [42, 74, 106, 138];
-  for (i = 0; i < 4; i++) {
-    SEATS.push({ id: 'C' + (i + 1), name: '窗边' + (i + 1), zone: '窗边I人区',
-      x: counterX[i], y: 48, w: 12, h: 12, dir: 'n', stool: true });
+  // 靠墙单人桌 ×6（面朝北，看到背影）
+  for (i = 0; i < 6; i++) {
+    SEATS.push({ id: 'S' + (i + 1), name: '单' + (i + 1), zone: '靠墙单人桌',
+      x: 28 + i * 64, y: 48, w: 16, h: 16, dir: 'n', stool: true });
   }
-  var bigX = [236, 258, 280, 302];
-  for (i = 0; i < 4; i++) {
-    SEATS.push({ id: 'A' + (i + 1), name: '大桌' + (i + 1), zone: '大桌',
-      x: bigX[i], y: 98, w: 16, h: 16, dir: 's', table: 'big' });
-    SEATS.push({ id: 'A' + (i + 5), name: '大桌' + (i + 5), zone: '大桌',
-      x: bigX[i], y: 172, w: 16, h: 16, dir: 'n', table: 'big' });
+  // 大桌第一排 A1-A6 北侧(面朝南) / A7-A12 南侧(面朝北)
+  var rowX = [112, 144, 176, 208, 240, 272];
+  for (i = 0; i < 6; i++) {
+    SEATS.push({ id: 'A' + (i + 1), name: '1排' + (i + 1), zone: '大桌第一排',
+      x: rowX[i], y: 92, w: 16, h: 16, dir: 's', table: 't1' });
+    SEATS.push({ id: 'A' + (i + 7), name: '1排' + (i + 7), zone: '大桌第一排',
+      x: rowX[i], y: 150, w: 16, h: 16, dir: 'n', table: 't1' });
   }
-  var smallTables = [
-    { t: 's1', x: 56, y: 104 }, { t: 's2', x: 56, y: 192 },
-    { t: 's3', x: 344, y: 104 }, { t: 's4', x: 344, y: 192 }
-  ];
-  smallTables.forEach(function (st, k) {
-    SEATS.push({ id: 'B' + (k * 2 + 1), name: '小桌' + (k + 1) + '上', zone: '小桌',
-      x: st.x, y: st.y - 24, w: 16, h: 16, dir: 's', table: st.t });
-    SEATS.push({ id: 'B' + (k * 2 + 2), name: '小桌' + (k + 1) + '下', zone: '小桌',
-      x: st.x, y: st.y + 40, w: 16, h: 16, dir: 'n', table: st.t });
-  });
+  // 大桌第二排
+  for (i = 0; i < 6; i++) {
+    SEATS.push({ id: 'B' + (i + 1), name: '2排' + (i + 1), zone: '大桌第二排',
+      x: rowX[i], y: 190, w: 16, h: 16, dir: 's', table: 't2' });
+    SEATS.push({ id: 'B' + (i + 7), name: '2排' + (i + 7), zone: '大桌第二排',
+      x: rowX[i], y: 248, w: 16, h: 16, dir: 'n', table: 't2' });
+  }
   function seatById(id) { return SEATS.find(function (s) { return s.id === id; }); }
 
   /* ================= 数据层 ================= */
@@ -785,11 +787,11 @@
       }
       DB.batches[bid] = b;
     }
-    mkBatch(['A1', 'A2', 'A5', 'A6'], 1.5 * H, 4 * H, '红衣服', { leftAgo: 0.5 * H });
-    mkBatch(['A7', 'A8'], 36 * M, 60 * M, '');
-    mkBatch(['B1', 'B2'], 2 * H, 4.5 * H, '情侣');
-    mkBatch(['C1'], 0.8 * H, 2 * H, '');
-    mkBatch(['C3'], 3 * H, 2 * H, '常客');   // 已到时
+    mkBatch(['A1', 'A2', 'A7', 'A8'], 1.5 * H, 4 * H, '红衣服', { leftAgo: 0.5 * H });
+    mkBatch(['A11', 'A12'], 36 * M, 60 * M, '');
+    mkBatch(['S3'], 0.8 * H, 2 * H, '');
+    mkBatch(['B1', 'B3'], 2 * H, 4.5 * H, '情侣');
+    mkBatch(['B12'], 3 * H, 2 * H, '常客');   // 已到时
     save();
     // 截图自检钩子（仅 demo 模式）
     var shot = (location.search.match(/shot=(\w+)/) || [])[1];
