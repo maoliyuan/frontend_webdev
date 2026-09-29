@@ -120,18 +120,31 @@ img { image-rendering: pixelated; }
 .seat-hit.sel-close .hl { display: block; border-color: var(--red); }
 .seat-hit.swap-src .hl { display: block; border-color: #4a7cc8; animation: blink .6s steps(2) infinite; }
 
-/* 开桌弹窗：逐座位选男女 */
+/* 开桌弹窗：逐座位选男女+逐人时长 */
 .assign-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
 .assign-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
   background: var(--cream);
   border: 2px solid var(--ink);
   border-radius: 4px;
   padding: 5px 10px;
   font-size: 15px;
 }
+.assign-row .seat-cell { display: flex; align-items: center; gap: 8px; flex: 1; }
+.assign-row .person-prev { width: 24px; image-rendering: pixelated; }
+.assign-row select.dur-sel, .assign-row input.dur-inp {
+  font-family: var(--font);
+  font-size: 14px;
+  padding: 3px 6px;
+  border: 2px solid var(--ink);
+  border-radius: 4px;
+  background: #fffdf4;
+  width: 92px;
+}
+.assign-row input.dur-inp { width: 80px; }
 .gender-pick { display: flex; gap: 6px; }
 .g-b:not(.pbtn-gold), .g-g:not(.pbtn-gold) { opacity: .55; }
 

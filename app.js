@@ -9,16 +9,17 @@
   var ROOM_W = 416, ROOM_H = 304;
 
   var FURNITURE = [
+    { img: 'shelf.png', x: 0, y: 16, w: 416, h: 20 },          // 豆仓货架墙
     // 靠墙单人桌 ×6
-    { img: 'desk_single.png', x: 23, y: 24, w: 26, h: 22 },
-    { img: 'desk_single.png', x: 87, y: 24, w: 26, h: 22 },
-    { img: 'desk_single.png', x: 151, y: 24, w: 26, h: 22 },
-    { img: 'desk_single.png', x: 215, y: 24, w: 26, h: 22 },
-    { img: 'desk_single.png', x: 279, y: 24, w: 26, h: 22 },
-    { img: 'desk_single.png', x: 343, y: 24, w: 26, h: 22 },
+    { img: 'desk_single.png', x: 23, y: 40, w: 26, h: 22 },
+    { img: 'desk_single.png', x: 87, y: 40, w: 26, h: 22 },
+    { img: 'desk_single.png', x: 151, y: 40, w: 26, h: 22 },
+    { img: 'desk_single.png', x: 215, y: 40, w: 26, h: 22 },
+    { img: 'desk_single.png', x: 279, y: 40, w: 26, h: 22 },
+    { img: 'desk_single.png', x: 343, y: 40, w: 26, h: 22 },
     // 两排 2×6 白色塑料长桌
-    { img: 'table_long.png', x: 108, y: 116, w: 200, h: 28 },
-    { img: 'table_long.png', x: 108, y: 214, w: 200, h: 28 },
+    { img: 'table_long.png', x: 108, y: 120, w: 200, h: 28 },
+    { img: 'table_long.png', x: 108, y: 216, w: 200, h: 28 },
     { img: 'plant.png', x: 8, y: 268, w: 16, h: 20 },
     { img: 'plant.png', x: 390, y: 268, w: 16, h: 20 },
     { img: 'mat.png', x: 192, y: 286, w: 32, h: 12 }
@@ -29,28 +30,44 @@
   // 靠墙单人桌 ×6（面朝北，看到背影）
   for (i = 0; i < 6; i++) {
     SEATS.push({ id: 'S' + (i + 1), name: '单' + (i + 1), zone: '靠墙单人桌',
-      x: 28 + i * 64, y: 48, w: 16, h: 16, dir: 'n', stool: true });
+      x: 28 + i * 64, y: 66, w: 16, h: 16, dir: 'n', stool: true, plaqueDy: -34 });
   }
   // 大桌第一排 A1-A6 北侧(面朝南) / A7-A12 南侧(面朝北)
   var rowX = [112, 144, 176, 208, 240, 272];
   for (i = 0; i < 6; i++) {
     SEATS.push({ id: 'A' + (i + 1), name: '1排' + (i + 1), zone: '大桌第一排',
-      x: rowX[i], y: 92, w: 16, h: 16, dir: 's', table: 't1' });
+      x: rowX[i], y: 96, w: 16, h: 16, dir: 's', table: 't1' });
     SEATS.push({ id: 'A' + (i + 7), name: '1排' + (i + 7), zone: '大桌第一排',
-      x: rowX[i], y: 150, w: 16, h: 16, dir: 'n', table: 't1' });
+      x: rowX[i], y: 156, w: 16, h: 16, dir: 'n', table: 't1' });
   }
   // 大桌第二排
   for (i = 0; i < 6; i++) {
     SEATS.push({ id: 'B' + (i + 1), name: '2排' + (i + 1), zone: '大桌第二排',
-      x: rowX[i], y: 190, w: 16, h: 16, dir: 's', table: 't2' });
+      x: rowX[i], y: 192, w: 16, h: 16, dir: 's', table: 't2' });
     SEATS.push({ id: 'B' + (i + 7), name: '2排' + (i + 7), zone: '大桌第二排',
-      x: rowX[i], y: 248, w: 16, h: 16, dir: 'n', table: 't2' });
+      x: rowX[i], y: 252, w: 16, h: 16, dir: 'n', table: 't2' });
   }
   function seatById(id) { return SEATS.find(function (s) { return s.id === id; }); }
 
   /* ================= 数据层 ================= */
-  var STORE_KEY = 'beadshop_v3';
+  var STORE_KEY = 'beadshop_v4';
 
+  function migrate(d) {
+    // v3 -> v4：批次统一 end 拆到每个成员（支持逐人不同时长）
+    if (d && d.batches) {
+      Object.keys(d.batches).forEach(function (bid) {
+        var b = d.batches[bid];
+        if (b.end != null) {
+          Object.keys(b.members || {}).forEach(function (pid) {
+            var m = b.members[pid];
+            if (m.end == null) m.end = b.end;
+          });
+          delete b.end;
+        }
+      });
+    }
+    return d;
+  }
   function defaultData() {
     return {
       shopName: '拼豆小店',
@@ -58,7 +75,7 @@
       minStartMin: 120,     // 最小开桌时间（分钟），提前走不退
       minExtendMin: 30,     // 加钟最小单位（分钟）
       seats: {},            // seatId -> {pid, bid}
-      batches: {},          // bid -> {id,note,start,end,members:{pid:{...}}}
+      batches: {},          // bid -> {id,note,start,members:{pid:{id,gender,variant,seatId,status,paid,fee,leftAt,end}}}
       reservations: [],
       stock: [
         { id: 'b1', name: '白色豆豆', qty: 50 },
@@ -70,7 +87,11 @@
   function load() {
     try {
       var d = JSON.parse(localStorage.getItem(STORE_KEY));
-      if (d && d.batches) return d;
+      if (d && d.batches) return migrate(d);
+    } catch (e) {}
+    try {   // 兼容旧版数据
+      var old = JSON.parse(localStorage.getItem('beadshop_v3'));
+      if (old && old.batches) return migrate(old);
     } catch (e) {}
     return defaultData();
   }
@@ -88,6 +109,17 @@
     return Object.keys(b.members).map(function (k) { return b.members[k]; })
       .filter(function (m) { return m.status === 'gone' && !m.paid; });
   }
+  /* 批次最近到点（活跃成员里最小的 end）与最远到点 */
+  function batchNearEnd(b) {
+    var e = Infinity;
+    activeMembers(b).forEach(function (m) { if (m.end < e) e = m.end; });
+    return e === Infinity ? 0 : e;
+  }
+  function batchFarEnd(b) {
+    var e = 0;
+    activeMembers(b).forEach(function (m) { if (m.end > e) e = m.end; });
+    return e;
+  }
   /* 费用：按实际占用分钟线性计，保底 minStartMin */
   function feeOf(m, b, now) {
     var t = (m.status === 'active' ? now : m.leftAt) - b.start;
@@ -96,7 +128,7 @@
   }
   function batchList() {
     return Object.keys(DB.batches).map(function (k) { return DB.batches[k]; })
-      .sort(function (a, b) { return a.end - b.end; });
+      .sort(function (a, b) { return batchNearEnd(a) - batchNearEnd(b); });
   }
 
   /* ================= 时间工具 ================= */
@@ -209,27 +241,37 @@
       }
       html += '</div>';
     });
-    // 每批一个时钟牌（锚在活跃成员座位中心）
+    // 时钟牌：同一批里 end 相同的成员共享一块牌（锚在该 subgroup 座位中心）
     batchList().forEach(function (b) {
       var act = activeMembers(b);
       if (!act.length) return;
-      var cx = 0, cy = 0, n = 0;
+      var groups = {};
       act.forEach(function (m) {
-        var s = seatById(m.seatId);
-        if (!s) return;
-        cx += s.x + s.w / 2; cy += s.y + s.h / 2; n++;
+        var k = m.end;
+        (groups[k] = groups[k] || []).push(m);
       });
-      if (!n) return;
-      cx /= n; cy /= n;
-      var remain = b.end - now;
-      var frac = Math.max(0, Math.min(1, remain / (b.end - b.start)));
-      var cls2 = remain <= 0 ? 'over' : (remain < 15 * 60000 ? 'warn' : 'ok');
-      var stool = !!seatById(act[0].seatId).stool;
-      var topY = stool ? cy + 16 : cy - 28;
-      html += '<div class="plaque ' + cls2 + '" data-bid="' + b.id + '" data-frac="' + frac +
-        '" style="left:' + pctX(cx) + ';top:' + pctY(topY) + '">' +
-        '<canvas class="clk" width="16" height="16"></canvas>' +
-        '<span>' + (remain <= 0 ? '到时!' : fmtRemain(remain)) + '</span></div>';
+      Object.keys(groups).forEach(function (end) {
+        var members = groups[end];
+        var cx = 0, cy = 0, n = 0, plaqueDy = null;
+        members.forEach(function (m) {
+          var s = seatById(m.seatId);
+          if (!s) return;
+          cx += s.x + s.w / 2; cy += s.y + s.h / 2; n++;
+          if (s.plaqueDy != null) plaqueDy = s.plaqueDy;
+        });
+        if (!n) return;
+        cx /= n; cy /= n;
+        var remain = end - now;
+        var frac = Math.max(0, Math.min(1, remain / (end - b.start)));
+        var cls2 = remain <= 0 ? 'over' : (remain < 15 * 60000 ? 'warn' : 'ok');
+        var firstSeat = seatById(members[0].seatId);
+        var stool = !!(firstSeat && firstSeat.stool);
+        var topY = plaqueDy != null ? cy + plaqueDy : (stool ? cy + 16 : cy - 28);
+        html += '<div class="plaque ' + cls2 + '" data-bid="' + b.id + '" data-frac="' + frac +
+          '" style="left:' + pctX(cx) + ';top:' + pctY(topY) + '">' +
+          '<canvas class="clk" width="16" height="16"></canvas>' +
+          '<span>' + (remain <= 0 ? '到时!' : fmtRemain(remain)) + '</span></div>';
+      });
     });
     layer.innerHTML = html;
     // 画时钟
@@ -281,15 +323,19 @@
           '<div class="g-sub">还有尾款没结清</div>' +
           '<div class="g-ops"><button class="pbtn pbtn-sm pbtn-gold" data-op="settle" data-owe="' + owe + '">收尾款 ¥' + owe + '</button></div></div>';
       }
-      var remain = b.end - now;
+      var nearEnd = batchNearEnd(b), farEnd = batchFarEnd(b);
+      var remain = nearEnd - now;
       var cls = remain <= 0 ? 'over' : (remain < 15 * 60000 ? 'warn' : '');
       var name = b.note || (seatById(act[0].seatId) || {}).zone || '批次';
       var seatNames = act.map(function (m) { var s = seatById(m.seatId); return s ? s.name : ''; }).join(' ');
+      var durTxt = (nearEnd === farEnd)
+        ? ('共' + fmtDurCN(farEnd - b.start))
+        : ('最长' + fmtDurCN(farEnd - b.start) + ' · 最短' + fmtDurCN(nearEnd - b.start));
       return '<div class="group-card" data-bid="' + b.id + '">' +
         '<div class="g-name"><span>' + esc(name) + ' × ' + act.length + '人</span><span>' + esc(seatNames) + '</span></div>' +
         '<div class="g-count ' + cls + '">' + (remain <= 0 ? '已到时!' : '剩 ' + fmtRemain(remain)) + '</div>' +
-        '<div class="g-sub">' + fmtHM(b.start) + ' - ' + fmtHM(b.end) +
-        ' · 共' + fmtDurCN(b.end - b.start) + ' · 已营业 ' + fmtRemain(now - b.start) + '</div>' +
+        '<div class="g-sub">' + fmtHM(b.start) + ' 开始' +
+        ' · ' + durTxt + ' · 已营业 ' + fmtRemain(now - b.start) + '</div>' +
         '<div class="g-ops"><button class="pbtn pbtn-sm" data-op="extend">加钟</button></div></div>';
     }).join('');
   }
@@ -406,65 +452,111 @@
 
   /* ================= 开桌（猫） ================= */
   function openTableModal(seatIds) {
-    var minH = DB.minStartMin / 60;
+    var defMin = Math.max(DB.minStartMin, 120);
     var presetH = [];
     [2, 3, 4, 5, 8].forEach(function (h) { if (h * 60 >= DB.minStartMin) presetH.push(h); });
-    if (!presetH.length) presetH.push(Math.ceil(minH));
+    if (!presetH.length) presetH.push(Math.ceil(DB.minStartMin / 60));
+    function durOptions(selMin) {
+      var o = presetH.map(function (h) {
+        return '<option value="' + h * 60 + '"' + (h * 60 === selMin ? ' selected' : '') + '>' + h + '小时</option>';
+      }).join('');
+      o += '<option value="custom">自定义…</option>';
+      return o;
+    }
     var rows = seatIds.map(function (id) {
       var s = seatById(id);
-      return '<div class="assign-row" data-sid="' + id + '"><span>' + esc(s.name) + '</span>' +
-        '<span class="gender-pick"><button class="pbtn pbtn-sm g-b pbtn-gold" data-g="b">男生</button>' +
-        '<button class="pbtn pbtn-sm g-g" data-g="g">女生</button></span></div>';
+      return '<div class="assign-row" data-sid="' + id + '">' +
+        '<span class="seat-cell"><img class="person-prev" src="assets/p_b0_front.png">' + esc(s.name) + '</span>' +
+        '<span class="gender-pick"><button class="pbtn pbtn-sm g-b pbtn-gold" data-g="b">男</button>' +
+        '<button class="pbtn pbtn-sm g-g" data-g="g">女</button></span>' +
+        '<select class="dur-sel">' + durOptions(defMin) + '</select></div>';
     }).join('');
     var body =
+      '<p class="hint">点每个人的时长可以单独设置，每个人的时间可以不一样</p>' +
       '<div class="assign-list">' + rows + '</div>' +
-      '<div class="dur-grid">' +
-      presetH.map(function (h) { return '<button class="pbtn pbtn-sm" data-h="' + h + '">' + h + '小时</button>'; }).join('') +
-      '</div>' +
-      '<label class="field"><span>自定义时长（分钟，至少 ' + DB.minStartMin + '）</span>' +
-      '<input type="number" id="ot-min" min="' + DB.minStartMin + '" placeholder="例如 150"></label>' +
+      '<div class="field"><span>统一设为（一键应用到所有人）</span><div class="dur-grid">' +
+      presetH.map(function (h) { return '<button class="pbtn pbtn-sm" data-all="' + h * 60 + '">' + h + '小时</button>'; }).join('') +
+      '</div></div>' +
       '<label class="field"><span>批次备注（方便认人，可空）</span><input type="text" id="ot-note" placeholder="例如：红衣服 / 拼单"></label>' +
       '<p class="hint">' + DB.pricePerHour + ' 元/人/小时 · 保底 ' + fmtDurCN(DB.minStartMin * 60000) + ' · 现在开始（' + fmtHM(Date.now()) + '）</p>';
 
     openModal('开桌 · ' + seatIds.length + ' 个座位', body, [
       { text: '取消', onClick: closeModal },
-      {
-        text: '自定义开桌', cls: 'pbtn-gold', onClick: function () {
-          var mins = parseInt(document.getElementById('ot-min').value, 10);
-          if (!mins || mins < DB.minStartMin) { toast('时长不能低于保底 ' + DB.minStartMin + ' 分钟'); return; }
-          doOpen(seatIds, mins); closeModal();
-        }
-      }
+      { text: '确定开桌', cls: 'pbtn-gold', onClick: function () { doOpen(seatIds); } }
     ]);
     modalBody.querySelectorAll('.gender-pick button').forEach(function (b) {
       b.onclick = function () {
-        b.parentNode.querySelectorAll('button').forEach(function (x) { x.classList.remove('pbtn-gold'); });
+        var row = b.closest('.assign-row');
+        row.querySelectorAll('.gender-pick button').forEach(function (x) { x.classList.remove('pbtn-gold'); });
         b.classList.add('pbtn-gold');
+        row.querySelector('.person-prev').src = 'assets/p_' + b.dataset.g + '0_front.png';
       };
     });
-    modalBody.querySelectorAll('button[data-h]').forEach(function (b) {
-      b.onclick = function () { doOpen(seatIds, parseInt(b.dataset.h, 10) * 60); closeModal(); };
+    modalBody.querySelectorAll('.dur-sel').forEach(function (sel) {
+      sel.onchange = function () {
+        if (sel.value === 'custom') {
+          var inp = document.createElement('input');
+          inp.type = 'number'; inp.min = DB.minStartMin; inp.value = defMin;
+          inp.className = 'dur-inp';
+          sel.replaceWith(inp);
+        }
+      };
     });
+    modalBody.querySelectorAll('button[data-all]').forEach(function (b) {
+      b.onclick = function () {
+        var v = parseInt(b.dataset.all, 10);
+        modalBody.querySelectorAll('.assign-row').forEach(function (row) {
+          var sel = row.querySelector('.dur-sel');
+          if (sel) { sel.value = v; }
+          else {
+            var inp = row.querySelector('.dur-inp');
+            var ns = document.createElement('select');
+            ns.className = 'dur-sel';
+            ns.innerHTML = durOptions(v);
+            ns.value = v;
+            ns.onchange = sel_onchange;
+            inp.replaceWith(ns);
+          }
+        });
+        toast('已统一设为 ' + fmtDurCN(v * 60000));
+      };
+    });
+    function sel_onchange() {
+      var sel = this;
+      if (sel.value === 'custom') {
+        var inp = document.createElement('input');
+        inp.type = 'number'; inp.min = DB.minStartMin; inp.value = defMin;
+        inp.className = 'dur-inp';
+        sel.replaceWith(inp);
+      }
+    }
   }
 
-  function doOpen(seatIds, mins) {
+  function doOpen(seatIds) {
     var now = Date.now();
     var bid = uid('b');
     var note = document.getElementById('ot-note').value.trim();
-    var batch = { id: bid, note: note, start: now, end: now + mins * 60000, members: {} };
+    var batch = { id: bid, note: note, start: now, members: {} };
     seatIds.forEach(function (id, idx) {
-      var gbtn = modalBody.querySelector('.assign-row[data-sid="' + id + '"] .gender-pick .pbtn-gold');
+      var row = modalBody.querySelector('.assign-row[data-sid="' + id + '"]');
+      var gbtn = row.querySelector('.gender-pick .pbtn-gold');
       var gender = gbtn ? gbtn.dataset.g : (idx % 2 ? 'g' : 'b');
+      var sel = row.querySelector('.dur-sel');
+      var mins;
+      if (sel) mins = parseInt(sel.value, 10);
+      else mins = parseInt(row.querySelector('.dur-inp').value, 10);
+      if (!mins || mins < DB.minStartMin) mins = DB.minStartMin;
       var pid = uid('p');
       batch.members[pid] = {
         id: pid, gender: gender, variant: Math.floor(Math.random() * 10),
-        seatId: id, status: 'active', paid: false, fee: 0, leftAt: null
+        seatId: id, status: 'active', paid: false, fee: 0, leftAt: null,
+        end: now + mins * 60000
       };
       DB.seats[id] = { pid: pid, bid: bid };
     });
     DB.batches[bid] = batch;
     save(); setMode(null); closeModal();
-    toast('开桌成功，' + seatIds.length + ' 人，到点 ' + fmtHM(batch.end));
+    toast('开桌成功，' + seatIds.length + ' 人');
   }
 
   /* ================= 结账（狗） ================= */
@@ -553,16 +645,23 @@
   /* ================= 批次详情（点时钟） ================= */
   function batchDetailModal(b) {
     var now = Date.now();
-    var remain = b.end - now;
+    var nearEnd = batchNearEnd(b), farEnd = batchFarEnd(b);
+    var remain = nearEnd - now;
     var act = activeMembers(b);
-    var pct = Math.max(0, Math.round(remain / (b.end - b.start) * 100));
+    var pct = Math.max(0, Math.round(remain / (nearEnd - b.start) * 100));
+    var personLines = act.map(function (m) {
+      var s = seatById(m.seatId);
+      var mr = m.end - now;
+      return '<div class="bill-line"><span>' + (s ? esc(s.name) : '') + '（' + (m.gender === 'g' ? '女' : '男') + '）</span>' +
+        '<span>' + (mr <= 0 ? '到时!' : fmtRemain(mr)) + ' · ' + fmtHM(m.end) + '止</span></div>';
+    }).join('');
     var body =
       '<div class="bill-line"><span>剩余时间</span><span>' + (remain <= 0 ? '已到时!' : fmtRemain(remain) + '（' + pct + '%）') + '</span></div>' +
-      '<div class="bill-line"><span>时间段</span><span>' + fmtHM(b.start) + ' - ' + fmtHM(b.end) + '</span></div>' +
-      '<div class="bill-line"><span>已购时长</span><span>' + fmtDurCN(b.end - b.start) + '</span></div>' +
+      '<div class="bill-line"><span>开始时间</span><span>' + fmtHM(b.start) + '</span></div>' +
       '<div class="bill-line"><span>已营业</span><span>' + fmtRemain(now - b.start) + '</span></div>' +
       '<div class="bill-line"><span>在店人数</span><span>' + act.length + ' 人</span></div>' +
-      (b.note ? '<div class="bill-line"><span>备注</span><span>' + esc(b.note) + '</span></div>' : '');
+      (b.note ? '<div class="bill-line"><span>备注</span><span>' + esc(b.note) + '</span></div>' : '') +
+      '<p class="hint" style="margin-top:6px">每个人的时间：</p>' + personLines;
     openModal('批次详情', body, [
       { text: '关闭', onClick: closeModal },
       { text: '加钟', cls: 'pbtn-gold', onClick: function () { extendModal(b); } }
@@ -579,7 +678,7 @@
       '<button class="pbtn pbtn-sm" data-m="' + u * 4 + '">+' + fmtDurCN(u * 4 * 60000) + '</button>' +
       '</div>' +
       '<label class="field"><span>自定义加钟（分钟，至少 ' + u + '）</span><input type="number" id="ext-min" min="' + u + '"></label>' +
-      '<p class="hint">当前结束时间 ' + fmtHM(b.end) + ' · 整批一起加</p>';
+      '<p class="hint">当前最近到点 ' + fmtHM(batchNearEnd(b)) + ' · 整批所有人一起加，各自时长差保持不变</p>';
     openModal('加钟', body, [
       { text: '取消', onClick: closeModal },
       {
@@ -594,9 +693,9 @@
       x.onclick = function () { doExtend(b, parseInt(x.dataset.m, 10)); };
     });
     function doExtend(b, mins) {
-      b.end += mins * 60000;
+      activeMembers(b).forEach(function (m) { m.end += mins * 60000; });
       save(); renderSeats(); closeModal();
-      toast('已加钟 ' + fmtDurCN(mins * 60000) + '，到点 ' + fmtHM(b.end));
+      toast('已加钟 ' + fmtDurCN(mins * 60000) + '，最近到点 ' + fmtHM(batchNearEnd(b)));
     }
   }
 
@@ -766,20 +865,22 @@
   if (/[?&]demo=1/.test(location.search)) {
     var n = Date.now(), H = 3600000, M = 60000;
     DB = defaultData();
-    function mkBatch(seatIds, startAgo, total, note, goneSpec) {
+    function mkBatch(seatIds, startAgo, total, note, goneSpec, durs) {
       var bid = uid('b');
-      var b = { id: bid, note: note, start: n - startAgo, end: n - startAgo + total, members: {} };
+      var b = { id: bid, note: note, start: n - startAgo, members: {} };
       seatIds.forEach(function (id, idx) {
         var pid = uid('p');
+        var dur = (durs && durs[idx] != null) ? durs[idx] : total;   // 支持逐人不同时长
         b.members[pid] = { id: pid, gender: idx % 2 ? 'g' : 'b', variant: Math.floor(Math.random() * 10),
-          seatId: id, status: 'active', paid: false, fee: 0, leftAt: null };
+          seatId: id, status: 'active', paid: false, fee: 0, leftAt: null,
+          end: n - startAgo + dur };
         DB.seats[id] = { pid: pid, bid: bid };
       });
       if (goneSpec) {   // 一个提前走、未付钱的人
         var pid2 = uid('p');
         var leftAt = n - goneSpec.leftAgo;
         b.members[pid2] = { id: pid2, gender: 'b', variant: 3, seatId: null,
-          status: 'gone', paid: false, fee: 0, leftAt: leftAt };
+          status: 'gone', paid: false, fee: 0, leftAt: leftAt, end: n - startAgo + total };
         b.members[pid2].fee = (function () {
           var bill = Math.max(leftAt - b.start, DB.minStartMin * 60000);
           return Math.round(DB.pricePerHour * bill / 3600000);
@@ -787,10 +888,10 @@
       }
       DB.batches[bid] = b;
     }
-    mkBatch(['A1', 'A2', 'A7', 'A8'], 1.5 * H, 4 * H, '红衣服', { leftAgo: 0.5 * H });
+    mkBatch(['A1', 'A2', 'A7', 'A8'], 1.5 * H, 4 * H, '红衣服', { leftAgo: 0.5 * H }, [4 * H, 4 * H, 4 * H, 2 * H]);
     mkBatch(['A11', 'A12'], 36 * M, 60 * M, '');
     mkBatch(['S3'], 0.8 * H, 2 * H, '');
-    mkBatch(['B1', 'B3'], 2 * H, 4.5 * H, '情侣');
+    mkBatch(['B1', 'B3'], 2 * H, 4.5 * H, '情侣', null, [4.5 * H, 3 * H]);
     mkBatch(['B12'], 3 * H, 2 * H, '常客');   // 已到时
     save();
     // 截图自检钩子（仅 demo 模式）
