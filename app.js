@@ -10,16 +10,16 @@
 
   var FURNITURE = [
     { img: 'shelf.png', x: 0, y: 16, w: 416, h: 20 },          // 豆仓货架墙
-    // 靠墙单人桌 ×6
-    { img: 'desk_single.png', x: 23, y: 40, w: 26, h: 22 },
-    { img: 'desk_single.png', x: 87, y: 40, w: 26, h: 22 },
-    { img: 'desk_single.png', x: 151, y: 40, w: 26, h: 22 },
-    { img: 'desk_single.png', x: 215, y: 40, w: 26, h: 22 },
-    { img: 'desk_single.png', x: 279, y: 40, w: 26, h: 22 },
-    { img: 'desk_single.png', x: 343, y: 40, w: 26, h: 22 },
-    // 两排 2×6 白色塑料长桌
-    { img: 'table_long.png', x: 108, y: 120, w: 200, h: 28 },
-    { img: 'table_long.png', x: 108, y: 216, w: 200, h: 28 },
+    // 靠墙单人桌 ×6（与长桌同跨度 276：x=70 起，桌距 50，缝隙 24）
+    { img: 'desk_single.png', x: 70, y: 40, w: 26, h: 22 },
+    { img: 'desk_single.png', x: 120, y: 40, w: 26, h: 22 },
+    { img: 'desk_single.png', x: 170, y: 40, w: 26, h: 22 },
+    { img: 'desk_single.png', x: 220, y: 40, w: 26, h: 22 },
+    { img: 'desk_single.png', x: 270, y: 40, w: 26, h: 22 },
+    { img: 'desk_single.png', x: 320, y: 40, w: 26, h: 22 },
+    // 两排 2×6 白色塑料长桌（跨度与单人桌排一致）
+    { img: 'table_long.png', x: 70, y: 120, w: 276, h: 28 },
+    { img: 'table_long.png', x: 70, y: 216, w: 276, h: 28 },
     { img: 'plant.png', x: 8, y: 268, w: 16, h: 20 },
     { img: 'plant.png', x: 390, y: 268, w: 16, h: 20 },
     { img: 'mat.png', x: 192, y: 286, w: 32, h: 12 }
@@ -27,13 +27,13 @@
 
   var SEATS = [];
   var i;
-  // 靠墙单人桌 ×6（面朝北，看到背影）
+  // 靠墙单人桌 ×6（面朝北，看到背影），座位居中于各自桌面（桌 x=70+i*50）
   for (i = 0; i < 6; i++) {
     SEATS.push({ id: 'S' + (i + 1), name: '单' + (i + 1), zone: '靠墙单人桌',
-      x: 28 + i * 64, y: 66, w: 16, h: 16, dir: 'n', stool: true, plaqueDy: -34 });
+      x: 75 + i * 50, y: 66, w: 16, h: 16, dir: 'n', stool: true, plaqueDy: -34 });
   }
   // 大桌第一排 A1-A6 北侧(面朝南) / A7-A12 南侧(面朝北)
-  var rowX = [112, 144, 176, 208, 240, 272];
+  var rowX = [100, 140, 180, 220, 260, 300];
   for (i = 0; i < 6; i++) {
     SEATS.push({ id: 'A' + (i + 1), name: '1排' + (i + 1), zone: '大桌第一排',
       x: rowX[i], y: 96, w: 16, h: 16, dir: 's', table: 't1' });
@@ -223,7 +223,7 @@
       if (mode === 'open' && sel[s.id]) cls += ' sel-open';
       if (mode === 'close' && sel[s.id]) cls += ' sel-close';
       if (mode === 'swap' && swapSrc === s.id) cls += ' swap-src';
-      var chairImg = s.stool ? 'stool.png' : (s.dir === 's' ? 'chair_s.png' : 'chair_n.png');
+      var chairImg = s.dir === 's' ? 'chair_s.png' : 'chair_n.png';
       html += '<div class="' + cls + '" data-id="' + s.id + '" style="left:' + pctX(s.x - 4) + ';top:' + pctY(s.y - 4) +
         ';width:' + pctX(s.w + 8) + ';height:' + pctY(s.h + 8) + '">' +
         '<span class="hl"></span>' +
@@ -241,36 +241,18 @@
       }
       html += '</div>';
     });
-    // 时钟牌：同一批里 end 相同的成员共享一块牌（锚在该 subgroup 座位中心）
+    // 每人一块小钟：无文字只显示进度，锚在小人头左上方；点人弹出具体剩余时间
     batchList().forEach(function (b) {
-      var act = activeMembers(b);
-      if (!act.length) return;
-      var groups = {};
-      act.forEach(function (m) {
-        var k = m.end;
-        (groups[k] = groups[k] || []).push(m);
-      });
-      Object.keys(groups).forEach(function (end) {
-        var members = groups[end];
-        var cx = 0, cy = 0, n = 0, plaqueDy = null;
-        members.forEach(function (m) {
-          var s = seatById(m.seatId);
-          if (!s) return;
-          cx += s.x + s.w / 2; cy += s.y + s.h / 2; n++;
-          if (s.plaqueDy != null) plaqueDy = s.plaqueDy;
-        });
-        if (!n) return;
-        cx /= n; cy /= n;
-        var remain = end - now;
-        var frac = Math.max(0, Math.min(1, remain / (end - b.start)));
+      activeMembers(b).forEach(function (m) {
+        var s = seatById(m.seatId);
+        if (!s) return;
+        var remain = m.end - now;
+        var frac = Math.max(0, Math.min(1, remain / (m.end - b.start)));
         var cls2 = remain <= 0 ? 'over' : (remain < 15 * 60000 ? 'warn' : 'ok');
-        var firstSeat = seatById(members[0].seatId);
-        var stool = !!(firstSeat && firstSeat.stool);
-        var topY = plaqueDy != null ? cy + plaqueDy : (stool ? cy + 16 : cy - 28);
-        html += '<div class="plaque ' + cls2 + '" data-bid="' + b.id + '" data-frac="' + frac +
-          '" style="left:' + pctX(cx) + ';top:' + pctY(topY) + '">' +
-          '<canvas class="clk" width="16" height="16"></canvas>' +
-          '<span>' + (remain <= 0 ? '到时!' : fmtRemain(remain)) + '</span></div>';
+        var px = s.x + s.w / 2 - 16, py = s.y - 17;
+        html += '<div class="plaque mini ' + cls2 + '" data-bid="' + b.id + '" data-frac="' + frac +
+          '" style="left:' + pctX(px) + ';top:' + pctY(py) + '">' +
+          '<canvas class="clk" width="16" height="16"></canvas></div>';
       });
     });
     layer.innerHTML = html;
@@ -365,6 +347,22 @@
     });
   }
 
+  /* ================= 座位气泡（点人显示他的剩余时间） ================= */
+  var seatTip = null, seatTipTimer = null;
+  function showSeatTip(s, text) {
+    if (!seatTip) {   // buildRoom 会清空 #room，所以首次使用时再挂
+      seatTip = document.createElement('div');
+      seatTip.className = 'seat-tip';
+      room.appendChild(seatTip);
+    }
+    seatTip.textContent = text;
+    seatTip.style.left = pctX(s.x + s.w / 2);
+    seatTip.style.top = pctY(s.y - 20);
+    seatTip.style.display = 'block';
+    clearTimeout(seatTipTimer);
+    seatTipTimer = setTimeout(function () { seatTip.style.display = 'none'; }, 2600);
+  }
+
   /* ================= 座位点击 ================= */
   room.addEventListener('click', function (e) {
     var plq = e.target.closest('.plaque');
@@ -388,23 +386,36 @@
       var srcOcc = DB.seats[swapSrc];
       if (!srcOcc || !srcOcc.pid) { setMode(null); return; }
       var sb = DB.batches[srcOcc.bid];
-      if (busy) {   // 互换
-        var dstOcc = occ;
-        var db2 = DB.batches[dstOcc.bid];
-        DB.seats[swapSrc] = { pid: dstOcc.pid, bid: dstOcc.bid };
-        DB.seats[seat.id] = { pid: srcOcc.pid, bid: srcOcc.bid };
-        if (sb && sb.members[srcOcc.pid]) sb.members[srcOcc.pid].seatId = seat.id;
-        if (db2 && db2.members[dstOcc.pid]) db2.members[dstOcc.pid].seatId = swapSrc;
-        toast('已互换座位');
-      } else {      // 挪到空位
-        delete DB.seats[swapSrc];
-        DB.seats[seat.id] = { pid: srcOcc.pid, bid: srcOcc.bid };
-        if (sb && sb.members[srcOcc.pid]) sb.members[srcOcc.pid].seatId = seat.id;
-        toast('已换到 ' + seat.name);
+      var srcSeat = seatById(swapSrc);
+      if (busy) {   // 互换（弹确认防误点）
+        confirmModal('确认换座', '把 ' + srcSeat.name + ' 和 ' + seat.name + ' 的客人互换吗？', function () {
+          var dstOcc = occ;
+          var db2 = DB.batches[dstOcc.bid];
+          DB.seats[swapSrc] = { pid: dstOcc.pid, bid: dstOcc.bid };
+          DB.seats[seat.id] = { pid: srcOcc.pid, bid: srcOcc.bid };
+          if (sb && sb.members[srcOcc.pid]) sb.members[srcOcc.pid].seatId = seat.id;
+          if (db2 && db2.members[dstOcc.pid]) db2.members[dstOcc.pid].seatId = swapSrc;
+          save(); setMode(null);
+          toast('已互换座位');
+        });
+      } else {      // 挪到空位（弹确认防误点）
+        confirmModal('确认换座', '把 ' + srcSeat.name + ' 的客人换到 ' + seat.name + ' 吗？', function () {
+          delete DB.seats[swapSrc];
+          DB.seats[seat.id] = { pid: srcOcc.pid, bid: srcOcc.bid };
+          if (sb && sb.members[srcOcc.pid]) sb.members[srcOcc.pid].seatId = seat.id;
+          save(); setMode(null);
+          toast('已换到 ' + seat.name);
+        });
       }
-      save(); setMode(null);
     } else {
-      if (busy) { mode = 'swap'; swapSrc = seat.id; banner.classList.remove('hidden');
+      if (busy) {
+        var bb2 = DB.batches[occ.bid];
+        var mm = bb2 && bb2.members[occ.pid];
+        if (mm) {
+          var rm = mm.end - Date.now();
+          showSeatTip(seat, rm <= 0 ? '已到时！' : '剩 ' + fmtRemain(rm));
+        }
+        mode = 'swap'; swapSrc = seat.id; banner.classList.remove('hidden');
         modeHint.textContent = '换座：再点一个座位（空位=挪过去，有人=互换）';
         document.getElementById('mode-ok').textContent = '完成';
         renderSeats(); }
@@ -713,7 +724,8 @@
   };
 
   /* ================= 页签 ================= */
-  var tabNames = ['seats', 'reserve', 'stock', 'settings'];
+  // 预约/豆仓板块暂时下线，tabNames 同步移除（恢复时把 index.html 注释去掉并加回这两项）
+  var tabNames = ['seats', 'settings'];
   document.getElementById('tabs').addEventListener('click', function (e) {
     var t = e.target.closest('.tab');
     if (!t) return;
@@ -742,7 +754,8 @@
         '<button class="pbtn pbtn-sm pbtn-danger" data-op="del">取消预约</button></div>';
     }).join('');
   }
-  document.getElementById('btn-add-reserve').onclick = function () {
+  var btnAddReserve = document.getElementById('btn-add-reserve');   // 板块下线时为 null
+  if (btnAddReserve) btnAddReserve.onclick = function () {
     openModal('新增预约',
       '<label class="field"><span>客人称呼</span><input type="text" id="rsv-name"></label>' +
       '<label class="field"><span>到店时间</span><input type="text" id="rsv-time" placeholder="例如 今天 15:00"></label>' +
@@ -757,7 +770,8 @@
           save(); renderReserve(); closeModal();
         } }]);
   };
-  document.getElementById('reserve-list').addEventListener('click', function (e) {
+  var reserveList = document.getElementById('reserve-list');
+  if (reserveList) reserveList.addEventListener('click', function (e) {
     var b = e.target.closest('button[data-op="del"]');
     if (!b) return;
     var id = b.closest('.list-card').dataset.id;
@@ -783,7 +797,8 @@
         '</div></div>';
     }).join('');
   }
-  document.getElementById('btn-add-stock').onclick = function () {
+  var btnAddStock = document.getElementById('btn-add-stock');       // 板块下线时为 null
+  if (btnAddStock) btnAddStock.onclick = function () {
     openModal('添加品类',
       '<label class="field"><span>品类名称</span><input type="text" id="stk-name" placeholder="例如 透明豆豆"></label>' +
       '<label class="field"><span>初始数量</span><input type="number" id="stk-qty" min="0" value="10"></label>',
@@ -795,7 +810,8 @@
           save(); renderStock(); closeModal();
         } }]);
   };
-  document.getElementById('stock-list').addEventListener('click', function (e) {
+  var stockList = document.getElementById('stock-list');
+  if (stockList) stockList.addEventListener('click', function (e) {
     var b = e.target.closest('button[data-op]');
     if (!b) return;
     var id = b.closest('.list-card').dataset.id;
@@ -910,6 +926,10 @@
       } else if (shot === 'plaque') {
         document.querySelector('.plaque').click();
       } else if (shot === 'swap') {
+        clickSeat('A1');
+      } else if (shot === 'swap2') {   // 换座确认弹窗
+        clickSeat('A1'); clickSeat('A3');
+      } else if (shot === 'tip') {     // 点人显示剩余时间气泡
         clickSeat('A1');
       }
     }, 300);

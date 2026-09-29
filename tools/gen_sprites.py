@@ -112,36 +112,32 @@ def table_big():
     return img
 
 # ================= 椅子（空） 16x16 =================
-CHAIR_N = [  # 桌子北侧的椅子，面朝南(下)，靠背在上
+# 与白色塑料长桌配套：白色椅架 + 浅木色坐垫，同一款的两个朝向
+CHAIR_S = [  # 椅背在上（面朝南），桌子北侧的座位
     "................",
-    "..OOOOOOOOOOO...",
-    "..OWWWWWWWWW....".replace('W', 'D'),
-    "..ODDDDDDDDD....".replace('D', 'D'),
+    "..OOOOOOOOOOOO..",
+    "..OHHHHHHHHHHO..",
+    "..OWWWWWWWWWWO..",
+    "..OO........OO..",
+    "..OO........OO..",
+    "..OOOOOOOOOOOO..",
+    "..OLLLLLLLLLLO..",
+    "..OLLLLLLLLLLO..",
+    "..OMMMMMMMMMMO..",
+    "..OOOOOOOOOOOO..",
+    "...OO......OO...",
+    "...OO......OO...",
+    "...OO......OO...",
+    "................",
+    "................",
 ]
+
 def chair(facing):
-    """facing: 's' 椅背在上(面朝下); 'n' 椅背在下(面朝上)"""
-    rows = [
-        "................",
-        "..OOOOOOOOOOO...",
-        "..ODDDDDDDDDDO.."[1:17],
-    ]
-    img = Image.new('RGBA', (16, 16), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-    if facing == 's':      # 椅背在上方
-        back_y, seat_y, leg_y = 1, 6, 12
-    else:                  # 椅背在下方
-        leg_y, seat_y, back_y = 1, 6, 12
-    # 腿
-    d.rectangle([3, leg_y, 4, leg_y + 3], fill=WOOD_D)
-    d.rectangle([11, leg_y, 12, leg_y + 3], fill=WOOD_D)
-    # 座面
-    d.rectangle([2, seat_y, 13, seat_y + 5], fill=OUT)
-    d.rectangle([3, seat_y + 1, 12, seat_y + 4], fill=WOOD_M)
-    d.rectangle([3, seat_y + 1, 12, seat_y + 2], fill=WOOD_L)
-    # 靠背
-    d.rectangle([2, back_y, 13, back_y + 3], fill=OUT)
-    d.rectangle([3, back_y + 1, 12, back_y + 2], fill=WOOD_D)
-    return img
+    """facing: 's' 椅背在上(面朝南); 'n' 椅背在下(面朝北，同一款的垂直镜像)"""
+    pal = {'O': (140, 148, 156, 255), 'H': WHITE, 'W': (250, 251, 253, 255),
+           'L': WOOD_XL, 'M': WOOD_L}
+    rows = CHAIR_S if facing == 's' else CHAIR_S[::-1]
+    return from_matrix(rows, pal)
 
 # ================= 吧台凳 12x12 =================
 def stool():
@@ -251,7 +247,60 @@ def rug(w=128, h=80):
             d.rectangle([x, y, x + 3, y + 3], fill=(212, 105, 74, 255))
     return img
 
-# ================= 门垫 32x12 =================
+# ================= 白色塑料长桌 276x28 =================
+# 复刻手绘 desk_single/table_long 的白塑料风：灰描边、白台面、前挡板、两端桌腿
+def table_long(w=276, h=28):
+    EDGE    = (140, 148, 156, 255)
+    LEG     = (170, 178, 186, 255)
+    TOP_HI  = (255, 255, 255, 255)
+    TOP     = (250, 251, 253, 255)
+    SEAM    = (228, 232, 237, 255)   # 中段拼缝
+    MIDLINE = (238, 241, 244, 255)   # 台面横线
+    APRON   = (210, 215, 221, 255)
+    APRON_E = (223, 227, 232, 255)
+    img = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    mid = w // 2
+
+    def row(y, x0, x1, c):
+        d.line([(x0, y), (x1, y)], fill=c)
+
+    def top_fill(y, c):  # 台面行：中段拼缝一分为二
+        row(y, 1, mid - 1, c)
+        d.point([(mid, y)], fill=SEAM)
+        row(y, mid + 1, w - 2, c)
+
+    # 上沿（斜角切角）
+    row(0, 0, 1, EDGE); row(0, 3, w - 4, EDGE); row(0, w - 2, w - 1, EDGE)
+    d.point([(0, 1), (w - 1, 1)], fill=EDGE)
+    row(1, 2, mid - 1, TOP_HI); d.point([(mid, 1)], fill=SEAM); row(1, mid + 1, w - 3, TOP_HI)
+    row(2, 1, mid - 1, TOP_HI); d.point([(mid, 2)], fill=SEAM); row(2, mid + 1, w - 2, TOP_HI)
+    d.point([(0, 3), (w - 1, 3)], fill=EDGE)
+    row(3, 1, mid - 1, TOP_HI); d.point([(mid, 3)], fill=SEAM); row(3, mid + 1, w - 2, TOP_HI)
+    for y in range(4, 11):                       # 台面主体
+        d.point([(0, y), (w - 1, y)], fill=EDGE)
+        top_fill(y, TOP)
+    d.point([(0, 11), (w - 1, 11)], fill=EDGE)
+    row(11, 1, w - 2, MIDLINE)                   # 台面横线
+    for y in range(12, 21):
+        d.point([(0, y), (w - 1, y)], fill=EDGE)
+        top_fill(y, TOP)
+    d.point([(0, 21), (w - 1, 21)], fill=EDGE)
+    top_fill(21, APRON_E)
+    for y in range(22, 25):                      # 前挡板
+        d.point([(0, y), (w - 1, y)], fill=EDGE)
+        d.point([(1, y), (w - 2, y)], fill=APRON_E)
+        row(y, 2, mid - 1, APRON); d.point([(mid, y)], fill=SEAM); row(y, mid + 1, w - 3, APRON)
+    d.point([(1, 25), (w - 2, 25)], fill=APRON_E)
+    row(25, 2, mid - 1, APRON); d.point([(mid, 25)], fill=SEAM); row(25, mid + 1, w - 3, APRON)
+    d.point([(0, 26), (w - 1, 26)], fill=EDGE)
+    row(26, 2, mid - 1, APRON_E); d.point([(mid, 26)], fill=SEAM); row(26, mid + 1, w - 3, APRON_E)
+    # 下沿（斜角切角）+ 两端桌腿
+    row(27, 0, 1, EDGE); row(27, 3, w - 4, EDGE); row(27, w - 2, w - 1, EDGE)
+    row(27, 10, 13, LEG); row(27, w - 14, w - 11, LEG)
+    return img
+
+
 def mat(w=32, h=12):
     img = Image.new('RGBA', (w, h), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
@@ -265,6 +314,7 @@ if __name__ == '__main__':
     save(wall_tile(), 'wall.png')
     save(table_small(), 'table_small.png')
     save(table_big(), 'table_big.png')
+    save(table_long(), 'table_long.png')
     save(chair('s'), 'chair_s.png')   # 椅背在上，面朝南（桌子北侧的座位）
     save(chair('n'), 'chair_n.png')   # 椅背在下，面朝北（桌子南侧的座位）
     save(stool(), 'stool.png')

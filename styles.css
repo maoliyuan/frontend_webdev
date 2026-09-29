@@ -244,6 +244,26 @@ img { image-rendering: pixelated; }
 .plaque.ok { background: #dff5c8; }
 .plaque.warn { background: #ffe1a8; }
 .plaque.over { background: #ffb3a8; animation: blink .6s steps(2) infinite; }
+/* 每人小钟模式：只留指针盘，无文字 */
+.plaque.mini { padding: 0.2cqw; gap: 0; border-radius: 1.2cqw; }
+.plaque.mini canvas.clk { width: 2.8cqw; height: 2.8cqw; }
+
+/* 点人弹出的剩余时间气泡 */
+.seat-tip {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  background: var(--ink);
+  color: var(--cream);
+  border: 0.5cqw solid var(--cream);
+  border-radius: 1cqw;
+  padding: 0.6cqw 1.4cqw;
+  font-size: 3.2cqw;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: 0.5cqw 0.5cqw 0 rgba(0,0,0,.35);
+  pointer-events: none;
+  z-index: 6;
+}
 
 /* 图例 */
 .legend {
