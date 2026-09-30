@@ -429,6 +429,24 @@ img { image-rendering: pixelated; }
   box-shadow: 4px 4px 0 rgba(0,0,0,.4);
 }
 
+/* ===== 到时提示音 ===== */
+.btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+/* 声音还没解锁（浏览器要求先点击过页面）时的提示条 */
+.sound-hint {
+  position: fixed;
+  left: 50%; bottom: 76px;
+  transform: translateX(-50%);
+  background: var(--gold);
+  border: 3px solid var(--ink);
+  border-radius: 4px;
+  padding: 6px 16px;
+  font-size: 14px;
+  z-index: 90;
+  box-shadow: 3px 3px 0 rgba(0,0,0,.35);
+  max-width: 92vw;
+  text-align: center;
+}
+
 /* ===== 响应式 ===== */
 @media (max-width: 900px) {
   #sidebar { flex: 1 1 100%; max-height: none; }

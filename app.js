@@ -49,6 +49,10 @@
   }
   function seatById(id) { return SEATS.find(function (s) { return s.id === id; }); }
 
+  /* ================= 营业规则 ================= */
+  var MIN_DUR_MIN = 60;    // 开桌时长下限（分钟）= 1 小时
+  var MAX_DUR_MIN = 840;   // 开桌时长上限（分钟）= 14 小时
+
   /* ================= 数据层 ================= */
   var STORE_KEY = 'beadshop_v4';
 
@@ -66,14 +70,21 @@
         }
       });
     }
+    // v4 -> v5：开桌时长限定 1~14 小时（存量最小时间 120 一律降到 60）；默认店名换成「魔法菠萝」
+    if (d && !d.cfgV5) {
+      d.cfgV5 = 1;
+      if (d.minStartMin == null || d.minStartMin > MIN_DUR_MIN) d.minStartMin = MIN_DUR_MIN;
+      if (!d.shopName || d.shopName === '拼豆小店') d.shopName = '魔法菠萝 Magic Pineapple';
+    }
     return d;
   }
   function defaultData() {
     return {
-      shopName: '拼豆小店',
+      shopName: '魔法菠萝 Magic Pineapple',
       pricePerHour: 20,
-      minStartMin: 120,     // 最小开桌时间（分钟），提前走不退
+      minStartMin: 60,      // 最小开桌时间（分钟），提前走不退
       minExtendMin: 30,     // 加钟最小单位（分钟）
+      sound: null,          // 自定义到时提示音 {name,size,url}，null=内置「叮咚」
       seats: {},            // seatId -> {pid, bid}
       batches: {},          // bid -> {id,note,start,members:{pid:{id,gender,variant,seatId,status,paid,fee,leftAt,end}}}
       reservations: [],
@@ -260,6 +271,8 @@
     layer.querySelectorAll('.plaque').forEach(function (p) {
       drawClock(p.querySelector('canvas'), parseFloat(p.dataset.frac), p.classList.contains('over') ? 'over' : p.classList.contains('warn') ? 'warn' : 'ok');
     });
+    checkAlarms(now);
+    updateSoundHint();
     renderGroups(now);
   }
 
@@ -465,7 +478,9 @@
   function openTableModal(seatIds) {
     var defMin = Math.max(DB.minStartMin, 120);
     var presetH = [];
-    [2, 3, 4, 5, 8].forEach(function (h) { if (h * 60 >= DB.minStartMin) presetH.push(h); });
+    [1, 2, 3, 4, 5, 6, 8, 10, 12, 14].forEach(function (h) {
+      if (h * 60 >= DB.minStartMin && h * 60 <= MAX_DUR_MIN) presetH.push(h);
+    });
     if (!presetH.length) presetH.push(Math.ceil(DB.minStartMin / 60));
     function durOptions(selMin) {
       var o = presetH.map(function (h) {
@@ -489,7 +504,8 @@
       presetH.map(function (h) { return '<button class="pbtn pbtn-sm" data-all="' + h * 60 + '">' + h + '小时</button>'; }).join('') +
       '</div></div>' +
       '<label class="field"><span>批次备注（方便认人，可空）</span><input type="text" id="ot-note" placeholder="例如：红衣服 / 拼单"></label>' +
-      '<p class="hint">' + DB.pricePerHour + ' 元/人/小时 · 保底 ' + fmtDurCN(DB.minStartMin * 60000) + ' · 现在开始（' + fmtHM(Date.now()) + '）</p>';
+      '<p class="hint">' + DB.pricePerHour + ' 元/人/小时 · 保底 ' + fmtDurCN(DB.minStartMin * 60000) +
+      ' · 时长 1~14 小时 · 现在开始（' + fmtHM(Date.now()) + '）</p>';
 
     openModal('开桌 · ' + seatIds.length + ' 个座位', body, [
       { text: '取消', onClick: closeModal },
@@ -504,14 +520,7 @@
       };
     });
     modalBody.querySelectorAll('.dur-sel').forEach(function (sel) {
-      sel.onchange = function () {
-        if (sel.value === 'custom') {
-          var inp = document.createElement('input');
-          inp.type = 'number'; inp.min = DB.minStartMin; inp.value = defMin;
-          inp.className = 'dur-inp';
-          sel.replaceWith(inp);
-        }
-      };
+      sel.onchange = function () { if (sel.value === 'custom') sel.replaceWith(mkDurInput()); };
     });
     modalBody.querySelectorAll('button[data-all]').forEach(function (b) {
       b.onclick = function () {
@@ -532,14 +541,18 @@
         toast('已统一设为 ' + fmtDurCN(v * 60000));
       };
     });
+    function mkDurInput() {   // 自定义时长输入框：1~14 小时（分钟）
+      var inp = document.createElement('input');
+      inp.type = 'number';
+      inp.min = Math.max(MIN_DUR_MIN, DB.minStartMin);
+      inp.max = MAX_DUR_MIN;
+      inp.placeholder = '分钟';
+      inp.value = defMin;
+      inp.className = 'dur-inp';
+      return inp;
+    }
     function sel_onchange() {
-      var sel = this;
-      if (sel.value === 'custom') {
-        var inp = document.createElement('input');
-        inp.type = 'number'; inp.min = DB.minStartMin; inp.value = defMin;
-        inp.className = 'dur-inp';
-        sel.replaceWith(inp);
-      }
+      if (this.value === 'custom') this.replaceWith(mkDurInput());
     }
   }
 
@@ -556,7 +569,9 @@
       var mins;
       if (sel) mins = parseInt(sel.value, 10);
       else mins = parseInt(row.querySelector('.dur-inp').value, 10);
-      if (!mins || mins < DB.minStartMin) mins = DB.minStartMin;
+      var lo = Math.max(MIN_DUR_MIN, DB.minStartMin);
+      if (!mins || mins < lo) mins = lo;
+      if (mins > MAX_DUR_MIN) mins = MAX_DUR_MIN;
       var pid = uid('p');
       batch.members[pid] = {
         id: pid, gender: gender, variant: Math.floor(Math.random() * 10),
@@ -830,24 +845,30 @@
     document.getElementById('set-shop-name').value = DB.shopName;
     document.getElementById('set-min-start').value = DB.minStartMin;
     document.getElementById('set-min-extend').value = DB.minExtendMin;
+    renderSoundStatus();
   }
-  function bindNum(id, key) {
+  function bindNum(id, key, lo, hi) {
     document.getElementById(id).addEventListener('change', function () {
       var v = parseFloat(this.value);
-      if (!isNaN(v) && v >= 0) { DB[key] = v; save(); toast('设置已更新'); renderSettings(); }
+      if (isNaN(v)) return;
+      if (lo != null && v < lo) v = lo;      // 越界自动夹回范围
+      if (hi != null && v > hi) v = hi;
+      DB[key] = v; save(); toast('设置已更新'); renderSettings();
     });
   }
   bindNum('set-price', 'pricePerHour');
-  bindNum('set-min-start', 'minStartMin');
+  bindNum('set-min-start', 'minStartMin', MIN_DUR_MIN, MAX_DUR_MIN);
   bindNum('set-min-extend', 'minExtendMin');
   document.getElementById('set-shop-name').addEventListener('change', function () {
-    DB.shopName = this.value.trim() || '拼豆小店';
+    DB.shopName = this.value.trim() || '魔法菠萝 Magic Pineapple';
     save();
     document.getElementById('shop-title').textContent = DB.shopName;
     document.title = DB.shopName + ' · 座位管理';
   });
   document.getElementById('btn-export').onclick = function () {
-    var blob = new Blob([JSON.stringify(DB, null, 2)], { type: 'application/json' });
+    var d = JSON.parse(JSON.stringify(DB));
+    delete d.sound;   // 提示音是本机设置（可能好几 MB），不进备份文件
+    var blob = new Blob([JSON.stringify(d, null, 2)], { type: 'application/json' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = 'beadshop-' + new Date().toISOString().slice(0, 10) + '.json';
@@ -863,7 +884,8 @@
       try {
         var d = JSON.parse(reader.result);
         if (!d.batches) throw 0;
-        DB = d; save(); renderSeats(); renderSettings();
+        d.sound = DB.sound;   // 保留本机的提示音设置
+        DB = migrate(d); save(); renderSeats(); renderSettings();
         toast('导入成功');
       } catch (e) { toast('文件格式不对'); }
     };
@@ -875,6 +897,121 @@
       DB = defaultData(); save(); renderSeats(); renderSettings();
       toast('已恢复默认');
     }, '全部清空');
+  };
+
+  /* ================= 到时提示音 ================= */
+  /* 纯静态站也能响：默认走 Web Audio 现场合成「叮咚」声（不依赖任何音频文件）；
+     想换成自己的声音：设置里上传音频，以 base64 存进 localStorage（本机有效，刷新不丢） */
+  var SOUND_MAX_BYTES = 2 * 1024 * 1024;
+  var audioCtx = null, audioUnlocked = false, silentAlarm = false;
+  var alarmedEnd = {};   // pid -> 已响过铃的 end；加钟后 end 变了会再响
+
+  function getCtx() {
+    if (!audioCtx) {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) { try { audioCtx = new AC(); } catch (e) {} }
+    }
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+  }
+  /* 浏览器规定：用户先和页面有过交互才允许出声（开桌、点按钮都算交互） */
+  function unlockAudio() {
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    if (audioUnlocked) return;
+    audioUnlocked = true;
+    var el = document.getElementById('sound-hint');
+    if (el) el.classList.add('hidden');
+    if (silentAlarm) { silentAlarm = false; playAlert(); toast('⏰ 刚才有客人到时啦！'); }
+  }
+  document.addEventListener('pointerdown', unlockAudio, { passive: true });
+  document.addEventListener('keydown', unlockAudio, { passive: true });
+
+  /* 内置「叮咚」：两个带衰减的正弦音 */
+  function playChime() {
+    var ctx = getCtx();
+    if (!ctx || ctx.state !== 'running') return;
+    var t0 = ctx.currentTime + 0.03;
+    function note(freq, at, dur) {
+      var o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'sine'; o.frequency.value = freq;
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.exponentialRampToValueAtTime(0.45, at + 0.015);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+      o.connect(g); g.connect(ctx.destination);
+      o.start(at); o.stop(at + dur + 0.05);
+    }
+    note(1046.5, t0, 0.5);          // 叮
+    note(783.99, t0 + 0.28, 0.85);  // 咚
+  }
+  function playAlert() {
+    if (DB.sound && DB.sound.url) {
+      try { new Audio(DB.sound.url).play().catch(function () {}); } catch (e) {}
+    } else playChime();
+  }
+  /* 刷新页面时就已经到时的客人不补响，只对之后「刚刚到时」的响一次 */
+  function initAlarmed() {
+    Object.keys(DB.batches).forEach(function (bid) {
+      activeMembers(DB.batches[bid]).forEach(function (m) {
+        if (m.end <= Date.now()) alarmedEnd[m.id] = m.end;
+      });
+    });
+  }
+  function checkAlarms(now) {
+    var names = [];
+    Object.keys(DB.batches).forEach(function (bid) {
+      activeMembers(DB.batches[bid]).forEach(function (m) {
+        if (m.end <= now && alarmedEnd[m.id] !== m.end) {
+          alarmedEnd[m.id] = m.end;
+          var s = seatById(m.seatId);
+          if (s) names.push(s.name);
+        }
+      });
+    });
+    if (!names.length) return;
+    if (audioUnlocked) playAlert();
+    else silentAlarm = true;   // 还没解锁出声，等用户点击页面后补响
+    toast('⏰ 到时啦！' + names.join(' ') + '（' + names.length + ' 人）');
+  }
+  /* 有客人在店、但声音还没解锁时，挂一条提示（点一下页面就好） */
+  function updateSoundHint() {
+    if (audioUnlocked) return;
+    var el = document.getElementById('sound-hint');
+    if (!el) return;
+    var n = 0;
+    Object.keys(DB.batches).forEach(function (bid) { n += activeMembers(DB.batches[bid]).length; });
+    el.classList.toggle('hidden', n === 0);
+  }
+
+  /* ---- 设置里的提示音上传/试听 ---- */
+  function renderSoundStatus() {
+    var el = document.getElementById('sound-status');
+    el.innerHTML = DB.sound
+      ? '当前自定义提示音：' + esc(DB.sound.name) + '（' + Math.round((DB.sound.size || 0) / 1024) + 'KB）'
+      : '当前是内置「叮咚」声；上传音频可换成自己的提示音（建议 mp3，2MB 以内）';
+  }
+  document.getElementById('btn-sound-pick').onclick = function () { document.getElementById('sound-file').click(); };
+  document.getElementById('sound-file').addEventListener('change', function () {
+    var f = this.files[0];
+    this.value = '';
+    if (!f) return;
+    if (f.size > SOUND_MAX_BYTES) { toast('音频太大了，请压缩到 2MB 以内'); return; }
+    var rd = new FileReader();
+    rd.onload = function () {
+      var prev = DB.sound;
+      DB.sound = { name: f.name, size: f.size, url: rd.result };
+      try { save(); }
+      catch (e) { DB.sound = prev; toast('浏览器存不下这个音频，换个小点的试试'); return; }
+      renderSoundStatus();
+      playAlert();
+      toast('提示音已保存，刚才就是它的声音');
+    };
+    rd.readAsDataURL(f);
+  });
+  document.getElementById('btn-sound-test').onclick = function () { playAlert(); };
+  document.getElementById('btn-sound-clear').onclick = function () {
+    if (!DB.sound) { toast('现在用的就是内置音效'); return; }
+    DB.sound = null; save(); renderSoundStatus();
+    toast('已恢复内置「叮咚」声');
   };
 
   /* ================= 演示数据（?demo=1） ================= */
@@ -938,6 +1075,7 @@
   /* ================= 启动 ================= */
   document.getElementById('shop-title').textContent = DB.shopName;
   document.title = DB.shopName + ' · 座位管理';
+  initAlarmed();
   buildRoom();
   renderSeats();
   setInterval(renderSeats, 1000);

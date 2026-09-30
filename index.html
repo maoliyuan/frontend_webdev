@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>拼豆小店 · 座位管理</title>
+<title>魔法菠萝 Magic Pineapple · 座位管理</title>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
 <!-- 顶部木牌栏 -->
 <header class="topbar">
-  <div class="shop-sign"><img src="assets/bean.png" style="width:22px;vertical-align:-4px"> <span id="shop-title">拼豆小店</span></div>
+  <div class="shop-sign"><img src="assets/bean.png" style="width:22px;vertical-align:-4px"> <span id="shop-title">魔法菠萝 Magic Pineapple</span></div>
   <nav class="tabs" id="tabs">
     <button class="pbtn tab active" data-tab="seats">座位</button>
     <!-- 预约/豆仓板块暂时下线（代码保留，去掉注释即可恢复）
@@ -78,12 +78,20 @@
     <div class="settings-card">
       <label class="field"><span>每小时价格（元/人）</span>
         <input type="number" id="set-price" min="0" step="1"></label>
-      <label class="field"><span>最小开桌时间（分钟，提前走不退）</span>
-        <input type="number" id="set-min-start" min="0" step="10"></label>
+      <label class="field"><span>最小开桌时间（分钟，提前走不退，60~840）</span>
+        <input type="number" id="set-min-start" min="60" max="840" step="10"></label>
       <label class="field"><span>加钟最小单位（分钟）</span>
         <input type="number" id="set-min-extend" min="1" step="5"></label>
       <label class="field"><span>店铺名称</span>
         <input type="text" id="set-shop-name"></label>
+      <div class="field"><span>到时提示音（客人时间到会响）</span>
+        <div class="btn-row">
+          <button class="pbtn" id="btn-sound-pick">上传自定义音频</button>
+          <button class="pbtn" id="btn-sound-test">试听</button>
+          <button class="pbtn pbtn-danger" id="btn-sound-clear">恢复内置</button>
+        </div></div>
+      <p class="hint" id="sound-status"></p>
+      <input type="file" id="sound-file" accept="audio/*" class="hidden">
       <div class="settings-actions">
         <button class="pbtn" id="btn-export">导出数据</button>
         <button class="pbtn" id="btn-import">导入数据</button>
@@ -104,6 +112,7 @@
   </div>
 </div>
 
+<div id="sound-hint" class="sound-hint hidden">🔔 到时提示音还没就绪：用鼠标点一下页面任意位置即可（浏览器要求先点击才能播放声音）</div>
 <div id="toast" class="toast hidden"></div>
 
 <script src="app.js"></script>
