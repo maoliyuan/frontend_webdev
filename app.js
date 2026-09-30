@@ -1095,11 +1095,21 @@
         : '当前是内置「叮咚」声；把音频命名为 alert.mp3 放进仓库 assets/ 可设为全站默认，或在设置里上传（仅本机，2MB 内）';
   }
   document.getElementById('btn-sound-pick').onclick = function () { document.getElementById('sound-file').click(); };
+  /* 选择器按扩展名列格式（部分系统对 .m4a/.mp3 没有 MIME 映射，文件在弹窗里发灰选不中）；
+     上传时按扩展名补全/纠正 MIME，避免 data URL 缺 MIME 或 audio/x-m4a 之类非标准类型在部分浏览器解不出码 */
+  var AUDIO_EXT_MIMES = { mp3: 'audio/mpeg', m4a: 'audio/mp4', aac: 'audio/aac', ogg: 'audio/ogg',
+    oga: 'audio/ogg', opus: 'audio/ogg', wav: 'audio/wav', webm: 'audio/webm', flac: 'audio/flac' };
+  function audioExtMime(name) {
+    var m = /\.([a-z0-9]+)$/i.exec(name || '');
+    return m ? (AUDIO_EXT_MIMES[m[1].toLowerCase()] || '') : '';
+  }
   document.getElementById('sound-file').addEventListener('change', function () {
     var f = this.files[0];
     this.value = '';
     if (!f) return;
     if (f.size > SOUND_MAX_BYTES) { toast('音频太大了，请压缩到 2MB 以内'); return; }
+    var mime = audioExtMime(f.name);
+    var src = (mime && mime !== f.type) ? new File([f], f.name, { type: mime }) : f;
     var rd = new FileReader();
     rd.onload = function () {
       var prev = DB.sound;
@@ -1109,8 +1119,13 @@
       renderSoundStatus();
       playAlert();
       toast('提示音已保存，刚才就是它的声音');
+      /* 兜底反馈：文件存下了但浏览器解不出码时明确告知，别让「静默成功没声音」被当成上传失败 */
+      var probe = new Audio(rd.result);
+      probe.addEventListener('error', function () {
+        toast('已保存，但这个浏览器放不出「' + f.name + '」，建议转成 MP3 再试');
+      });
     };
-    rd.readAsDataURL(f);
+    rd.readAsDataURL(src);
   });
   document.getElementById('btn-sound-test').onclick = function () { playAlert(); };
   document.getElementById('btn-sound-clear').onclick = function () {
