@@ -243,7 +243,12 @@ img { image-rendering: pixelated; }
 .plaque { pointer-events: auto; cursor: pointer; }
 .plaque.ok { background: #dff5c8; }
 .plaque.warn { background: #ffe1a8; }
-.plaque.over { background: #ffb3a8; animation: blink .6s steps(2) infinite; }
+.plaque.over { background: #ffb3a8; animation: blink .6s steps(2) infinite, alarm-shake .5s linear infinite; }
+/* 到时晃动：小闹钟左右猛晃（keyframe 里保留 translateX(-50%) 维持居中） */
+@keyframes alarm-shake {
+  0%, 100% { transform: translateX(-50%) rotate(-12deg); }
+  50% { transform: translateX(-50%) rotate(12deg); }
+}
 /* 每人小钟模式：只留指针盘，无文字 */
 .plaque.mini { padding: 0.2cqw; gap: 0; border-radius: 1.2cqw; }
 .plaque.mini canvas.clk { width: 2.8cqw; height: 2.8cqw; }
@@ -431,6 +436,15 @@ img { image-rendering: pixelated; }
 
 /* ===== 到时提示音 ===== */
 .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+/* 音量条 */
+.vol-row { display: flex; align-items: center; gap: 8px; }
+.vol-row input[type="range"] {
+  flex: 1;
+  accent-color: var(--wood-m);
+  border: none; padding: 0; background: transparent;
+  height: 22px;
+}
+.vol-num { min-width: 46px; text-align: right; font-size: 14px; }
 /* 声音还没解锁（浏览器要求先点击过页面）时的提示条 */
 .sound-hint {
   position: fixed;

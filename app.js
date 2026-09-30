@@ -76,6 +76,7 @@
       if (d.minStartMin == null || d.minStartMin > MIN_DUR_MIN) d.minStartMin = MIN_DUR_MIN;
       if (!d.shopName || d.shopName === '拼豆小店') d.shopName = '魔法菠萝 Magic Pineapple';
     }
+    if (d && d.soundVol == null) d.soundVol = 100;   // v5.1：音量条（幂等）
     return d;
   }
   function defaultData() {
@@ -85,6 +86,7 @@
       minStartMin: 60,      // 最小开桌时间（分钟），提前走不退
       minExtendMin: 30,     // 加钟最小单位（分钟）
       sound: null,          // 自定义到时提示音 {name,size,url}，null=内置「叮咚」
+      soundVol: 100,        // 响铃音量 0~100
       seats: {},            // seatId -> {pid, bid}
       batches: {},          // bid -> {id,note,start,members:{pid:{id,gender,variant,seatId,status,paid,fee,leftAt,end}}}
       reservations: [],
@@ -846,6 +848,7 @@
     document.getElementById('set-min-start').value = DB.minStartMin;
     document.getElementById('set-min-extend').value = DB.minExtendMin;
     renderSoundStatus();
+    renderVol();
   }
   function bindNum(id, key, lo, hi) {
     document.getElementById(id).addEventListener('change', function () {
@@ -903,8 +906,12 @@
   /* 纯静态站也能响：默认走 Web Audio 现场合成「叮咚」声（不依赖任何音频文件）；
      想换成自己的声音：设置里上传音频，以 base64 存进 localStorage（本机有效，刷新不丢） */
   var SOUND_MAX_BYTES = 2 * 1024 * 1024;
-  var audioCtx = null, audioUnlocked = false, silentAlarm = false;
+  var ALARM_RING_MS = 60000;     // 到时后持续响 1 分钟自动停
+  var RING_GAP_MS = 2000;        // 播完一遍后隔 2 秒从头再播
+  var CHIME_MS = 1200;           // 内置「叮咚」时长
+  var audioCtx = null, audioUnlocked = false;
   var alarmedEnd = {};   // pid -> 已响过铃的 end；加钟后 end 变了会再响
+  var ringUntil = 0;
 
   function getCtx() {
     if (!audioCtx) {
@@ -921,13 +928,15 @@
     audioUnlocked = true;
     var el = document.getElementById('sound-hint');
     if (el) el.classList.add('hidden');
-    if (silentAlarm) { silentAlarm = false; playAlert(); toast('⏰ 刚才有客人到时啦！'); }
   }
   document.addEventListener('pointerdown', unlockAudio, { passive: true });
   document.addEventListener('keydown', unlockAudio, { passive: true });
 
+  function vol01() { return (DB.soundVol == null ? 100 : DB.soundVol) / 100; }
   /* 内置「叮咚」：两个带衰减的正弦音 */
   function playChime() {
+    var vol = vol01();
+    if (vol <= 0) return;
     var ctx = getCtx();
     if (!ctx || ctx.state !== 'running') return;
     var t0 = ctx.currentTime + 0.03;
@@ -935,7 +944,7 @@
       var o = ctx.createOscillator(), g = ctx.createGain();
       o.type = 'sine'; o.frequency.value = freq;
       g.gain.setValueAtTime(0.0001, at);
-      g.gain.exponentialRampToValueAtTime(0.45, at + 0.015);
+      g.gain.exponentialRampToValueAtTime(0.45 * vol, at + 0.015);
       g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
       o.connect(g); g.connect(ctx.destination);
       o.start(at); o.stop(at + dur + 0.05);
@@ -944,8 +953,10 @@
     note(783.99, t0 + 0.28, 0.85);  // 咚
   }
   function playAlert() {
+    var vol = vol01();
+    if (vol <= 0) return;
     if (DB.sound && DB.sound.url) {
-      try { new Audio(DB.sound.url).play().catch(function () {}); } catch (e) {}
+      try { var a = new Audio(DB.sound.url); a.volume = vol; a.play().catch(function () {}); } catch (e) {}
     } else playChime();
   }
   /* 刷新页面时就已经到时的客人不补响，只对之后「刚刚到时」的响一次 */
@@ -956,21 +967,75 @@
       });
     });
   }
+  /* 还有没有到时未处理的活跃客人（都处理完就提前停铃） */
+  function anyOverdue(now) {
+    var has = false;
+    Object.keys(DB.batches).forEach(function (bid) {
+      activeMembers(DB.batches[bid]).forEach(function (m) { if (m.end <= now) has = true; });
+    });
+    return has;
+  }
   function checkAlarms(now) {
     var names = [];
     Object.keys(DB.batches).forEach(function (bid) {
       activeMembers(DB.batches[bid]).forEach(function (m) {
         if (m.end <= now && alarmedEnd[m.id] !== m.end) {
           alarmedEnd[m.id] = m.end;
+          ringUntil = Math.max(ringUntil, m.end + ALARM_RING_MS);
           var s = seatById(m.seatId);
           if (s) names.push(s.name);
         }
       });
     });
-    if (!names.length) return;
-    if (audioUnlocked) playAlert();
-    else silentAlarm = true;   // 还没解锁出声，等用户点击页面后补响
-    toast('⏰ 到时啦！' + names.join(' ') + '（' + names.length + ' 人）');
+    if (names.length) {
+      startRingLoop();
+      toast('⏰ 到时啦！' + names.join(' ') + '（' + names.length + ' 人）');
+      return;
+    }
+    // 响铃窗口结束或客人都处理完 → 立即停铃（含掐断正在播的长音频）
+    if (ringLoopOn && (now >= ringUntil || !anyOverdue(now))) stopRingLoop();
+  }
+
+  /* ---- 响铃循环：音频播完一遍 → 等 2 秒 → 从头再播，直到到时后 1 分钟或客人处理完 ---- */
+  var ringLoopOn = false, ringTimer = null, curRingAudio = null;
+  function stopRingLoop() {
+    ringLoopOn = false;
+    clearTimeout(ringTimer);
+    if (curRingAudio) { try { curRingAudio.pause(); } catch (e) {} curRingAudio = null; }
+  }
+  function startRingLoop() {
+    if (ringLoopOn) return;
+    ringLoopOn = true;
+    ringStep();
+  }
+  function ringStep() {
+    if (!ringLoopOn) return;
+    if (Date.now() >= ringUntil || !anyOverdue(Date.now())) { stopRingLoop(); return; }
+    if (DB.sound && DB.sound.url) {
+      var a = null;
+      try { a = new Audio(DB.sound.url); } catch (e) {}
+      if (a) {
+        a.volume = vol01();
+        curRingAudio = a;
+        var ended = false;
+        function next() {   // 播完（或被拦/出错）→ 隔 2 秒从头再来
+          if (ended) return;
+          ended = true;
+          if (curRingAudio === a) curRingAudio = null;
+          ringTimer = setTimeout(ringStep, RING_GAP_MS);
+        }
+        a.onended = next;
+        a.onerror = next;
+        a.ontimeupdate = function () {   // 音频比 1 分钟长：只播前 60 秒
+          if (a.currentTime >= 60) { try { a.pause(); } catch (e) {} next(); }
+        };
+        var p = a.play();
+        if (p && p.catch) p.catch(next);   // 还没解锁出声会被拦，2 秒后自动再试
+        return;
+      }
+    }
+    playChime();
+    ringTimer = setTimeout(ringStep, CHIME_MS + RING_GAP_MS);   // 内置音按同样规则循环
   }
   /* 有客人在店、但声音还没解锁时，挂一条提示（点一下页面就好） */
   function updateSoundHint() {
@@ -1013,6 +1078,21 @@
     DB.sound = null; save(); renderSoundStatus();
     toast('已恢复内置「叮咚」声');
   };
+
+  /* ---- 音量条 ---- */
+  var volInp = document.getElementById('set-sound-vol');
+  function renderVol() {
+    volInp.value = DB.soundVol == null ? 100 : DB.soundVol;
+    document.getElementById('vol-num').textContent = volInp.value + '%';
+  }
+  volInp.addEventListener('input', function () {
+    document.getElementById('vol-num').textContent = this.value + '%';
+  });
+  volInp.addEventListener('change', function () {
+    DB.soundVol = parseInt(this.value, 10);
+    save(); renderVol();
+    playAlert();   // 松手就试听一下新音量
+  });
 
   /* ================= 演示数据（?demo=1） ================= */
   if (/[?&]demo=1/.test(location.search)) {

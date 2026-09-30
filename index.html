@@ -89,6 +89,11 @@
           <button class="pbtn" id="btn-sound-pick">上传自定义音频</button>
           <button class="pbtn" id="btn-sound-test">试听</button>
           <button class="pbtn pbtn-danger" id="btn-sound-clear">恢复内置</button>
+        </div>
+        <div class="vol-row">
+          <span>🔊</span>
+          <input type="range" id="set-sound-vol" min="0" max="100" step="5" value="100">
+          <span class="vol-num" id="vol-num">100%</span>
         </div></div>
       <p class="hint" id="sound-status"></p>
       <input type="file" id="sound-file" accept="audio/*" class="hidden">
