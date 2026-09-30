@@ -932,31 +932,51 @@
   document.addEventListener('pointerdown', unlockAudio, { passive: true });
   document.addEventListener('keydown', unlockAudio, { passive: true });
 
-  function vol01() { return (DB.soundVol == null ? 100 : DB.soundVol) / 100; }
-  /* 内置「叮咚」：两个带衰减的正弦音 */
+  /* 音量：100 = 原始音量；滑块最高 200，超过 100 的部分走 Web Audio 放大 */
+  function ringGain() { return (DB.soundVol == null ? 100 : DB.soundVol) / 100; }
+  /* 自定义音频出声：≤100% 直接用元素音量；>100% 接进 Web Audio 做增益放大 + 压限防爆音 */
+  function playCustomAudio(a, gain) {
+    if (gain <= 1) { a.volume = gain; return; }
+    var ctx = getCtx(), src = null;
+    try { src = ctx && ctx.createMediaElementSource(a); } catch (e) {}
+    if (!src) { a.volume = 1; return; }
+    var g = ctx.createGain();
+    g.gain.value = gain;
+    var comp = ctx.createDynamicsCompressor();
+    src.connect(g); g.connect(comp); comp.connect(ctx.destination);
+  }
+  /* 内置「叮咚」：两个带衰减的正弦音（峰值 0.9，音量旋钮在其后放大） */
   function playChime() {
-    var vol = vol01();
-    if (vol <= 0) return;
+    var gain = ringGain();
+    if (gain <= 0) return;
     var ctx = getCtx();
     if (!ctx || ctx.state !== 'running') return;
+    var master = ctx.createGain();
+    master.gain.value = gain;
+    var comp = ctx.createDynamicsCompressor();   // 超 100% 时压住峰值，防爆音
+    master.connect(comp); comp.connect(ctx.destination);
     var t0 = ctx.currentTime + 0.03;
     function note(freq, at, dur) {
       var o = ctx.createOscillator(), g = ctx.createGain();
       o.type = 'sine'; o.frequency.value = freq;
       g.gain.setValueAtTime(0.0001, at);
-      g.gain.exponentialRampToValueAtTime(0.45 * vol, at + 0.015);
+      g.gain.exponentialRampToValueAtTime(0.9, at + 0.015);
       g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
-      o.connect(g); g.connect(ctx.destination);
+      o.connect(g); g.connect(master);
       o.start(at); o.stop(at + dur + 0.05);
     }
     note(1046.5, t0, 0.5);          // 叮
     note(783.99, t0 + 0.28, 0.85);  // 咚
   }
   function playAlert() {
-    var vol = vol01();
-    if (vol <= 0) return;
+    var gain = ringGain();
+    if (gain <= 0) return;
     if (DB.sound && DB.sound.url) {
-      try { var a = new Audio(DB.sound.url); a.volume = vol; a.play().catch(function () {}); } catch (e) {}
+      try {
+        var a = new Audio(DB.sound.url);
+        playCustomAudio(a, gain);
+        a.play().catch(function () {});
+      } catch (e) {}
     } else playChime();
   }
   /* 刷新页面时就已经到时的客人不补响，只对之后「刚刚到时」的响一次 */
@@ -1015,7 +1035,7 @@
       var a = null;
       try { a = new Audio(DB.sound.url); } catch (e) {}
       if (a) {
-        a.volume = vol01();
+        playCustomAudio(a, ringGain());
         curRingAudio = a;
         var ended = false;
         function next() {   // 播完（或被拦/出错）→ 隔 2 秒从头再来
