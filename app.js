@@ -903,8 +903,8 @@
   };
 
   /* ================= 到时提示音 ================= */
-  /* 纯静态站也能响：默认走 Web Audio 现场合成「叮咚」声（不依赖任何音频文件）；
-     想换成自己的声音：设置里上传音频，以 base64 存进 localStorage（本机有效，刷新不丢） */
+  /* 优先级：本机上传（存 localStorage，仅本设备）> 仓库默认音频（assets/alert.*，跟部署走、全设备生效）
+     > 内置 Web Audio 合成「叮咚」（零配置兜底） */
   var SOUND_MAX_BYTES = 2 * 1024 * 1024;
   var ALARM_RING_MS = 60000;     // 到时后持续响 1 分钟自动停
   var RING_GAP_MS = 2000;        // 播完一遍后隔 2 秒从头再播
@@ -912,6 +912,20 @@
   var audioCtx = null, audioUnlocked = false;
   var alarmedEnd = {};   // pid -> 已响过铃的 end；加钟后 end 变了会再响
   var ringUntil = 0;
+  var repoSoundUrl = null;   // 仓库默认音频（assets/alert.*），启动时探测
+  /* 把音频命名为 alert.mp3 / alert.ogg / alert.wav / alert.m4a 放进 assets/ 即成为全站默认 */
+  (function probeRepoSound() {
+    var names = ['alert.mp3', 'alert.ogg', 'alert.wav', 'alert.m4a'];
+    var i = 0;
+    (function next() {
+      if (i >= names.length) { renderSoundStatus(); return; }
+      var u = 'assets/' + names[i++];
+      fetch(u, { method: 'HEAD' }).then(function (r) {
+        if (r.ok) { repoSoundUrl = u; renderSoundStatus(); }
+        else next();
+      }).catch(next);
+    })();
+  })();
 
   function getCtx() {
     if (!audioCtx) {
@@ -968,12 +982,15 @@
     note(1046.5, t0, 0.5);          // 叮
     note(783.99, t0 + 0.28, 0.85);  // 咚
   }
+  /* 当前生效的提示音来源：本机上传 > 仓库文件 > null(内置音) */
+  function soundURL() { return (DB.sound && DB.sound.url) || repoSoundUrl; }
   function playAlert() {
     var gain = ringGain();
     if (gain <= 0) return;
-    if (DB.sound && DB.sound.url) {
+    var url = soundURL();
+    if (url) {
       try {
-        var a = new Audio(DB.sound.url);
+        var a = new Audio(url);
         playCustomAudio(a, gain);
         a.play().catch(function () {});
       } catch (e) {}
@@ -1031,9 +1048,10 @@
   function ringStep() {
     if (!ringLoopOn) return;
     if (Date.now() >= ringUntil || !anyOverdue(Date.now())) { stopRingLoop(); return; }
-    if (DB.sound && DB.sound.url) {
+    var url = soundURL();
+    if (url) {
       var a = null;
-      try { a = new Audio(DB.sound.url); } catch (e) {}
+      try { a = new Audio(url); } catch (e) {}
       if (a) {
         playCustomAudio(a, ringGain());
         curRingAudio = a;
@@ -1071,8 +1089,10 @@
   function renderSoundStatus() {
     var el = document.getElementById('sound-status');
     el.innerHTML = DB.sound
-      ? '当前自定义提示音：' + esc(DB.sound.name) + '（' + Math.round((DB.sound.size || 0) / 1024) + 'KB）'
-      : '当前是内置「叮咚」声；上传音频可换成自己的提示音（建议 mp3，2MB 以内）';
+      ? '当前提示音：' + esc(DB.sound.name) + '（' + Math.round((DB.sound.size || 0) / 1024) + 'KB · 本机临时覆盖，点「恢复默认」取消）'
+      : repoSoundUrl
+        ? '当前提示音：仓库默认音频 ' + repoSoundUrl + '（全设备生效，替换仓库同名文件再部署即可换声）'
+        : '当前是内置「叮咚」声；把音频命名为 alert.mp3 放进仓库 assets/ 可设为全站默认，或在设置里上传（仅本机，2MB 内）';
   }
   document.getElementById('btn-sound-pick').onclick = function () { document.getElementById('sound-file').click(); };
   document.getElementById('sound-file').addEventListener('change', function () {
@@ -1094,9 +1114,9 @@
   });
   document.getElementById('btn-sound-test').onclick = function () { playAlert(); };
   document.getElementById('btn-sound-clear').onclick = function () {
-    if (!DB.sound) { toast('现在用的就是内置音效'); return; }
+    if (!DB.sound) { toast(repoSoundUrl ? '现在用的就是仓库默认音频' : '现在用的就是内置音效'); return; }
     DB.sound = null; save(); renderSoundStatus();
-    toast('已恢复内置「叮咚」声');
+    toast(repoSoundUrl ? '已恢复仓库默认音频' : '已恢复内置「叮咚」声');
   };
 
   /* ---- 音量条 ---- */
