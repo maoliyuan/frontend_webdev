@@ -975,9 +975,10 @@
 
   /* ================= 后台保活 =================
      iOS Safari 会冻结后台页面的 JS（定时器停 → 到时不响铃）；但只要页面在「播放媒体」，
-     系统就不冻结它。有客人在店时循环播放一段很轻的棕噪声（输出约 -30dB，像远处气流）
-     占住音频会话，到时判断和响铃在切后台/锁屏时就能照常工作。注意：不能无声也不能
-     muted——iOS 15.4 起 WebKit 会判定「没在真正出声」，照样把页面挂起。 */
+     系统就不冻结它。有客人在店时循环播放一段保活音频占住音频会话。注意：iOS 15.4 起
+     WebKit 会判定「实际没在出声」的会话无效并照样挂起页面，保活音必须带能量——
+     这里用 19kHz 超声（成年人人耳听不见、手机扬声器也难还原，但数字能量充足可过检）
+     加极轻棕噪声（-56dB，几乎不可闻）的组合。 */
   var kaAudio = null, kaWant = false, kaResumeAt = 0;
   var kaLastTickAt = Date.now(), kaFreezeInfo = null;   // 后台冻结检测用
   function kaCount() {
@@ -985,20 +986,21 @@
     Object.keys(DB.batches).forEach(function (bid) { n += activeMembers(DB.batches[bid]).length; });
     return n;
   }
-  /* 一段 2 秒的棕噪声循环（白噪声积分，能量集中在低频，听感像轻微气流）：去趋势保证
-     loop 接缝连续无爆音；data: 内嵌，不依赖仓库文件 */
+  /* 一段 2 秒 48kHz 循环：棕噪声（白噪声积分，能量集中低频）压到 -56dB；19kHz 正弦
+     振幅 0.1（-20dB），在 2 秒内恰为 38000 个整周期 → 循环接缝无爆音；棕噪声做去趋势
+     保证首尾相接；data: 内嵌，不依赖仓库文件 */
   var kaSilentURI = null;
   function kaSilentDataURI() {
     if (kaSilentURI) return kaSilentURI;
-    var rate = 8000, n = 16000;
+    var rate = 48000, n = 96000;
     var s = new Float32Array(n), last = 0, peak = 0, i;
     for (i = 0; i < n; i++) {
       last = (last + (Math.random() * 2 - 1) * 0.02) / 1.02;
-      s[i] = last * 3.5;
+      s[i] = last;
     }
     for (i = 0; i < n; i++) s[i] -= (s[n - 1] - s[0]) * i / n;   // 去趋势：首尾相接无缝循环
     for (i = 0; i < n; i++) peak = Math.max(peak, Math.abs(s[i]));
-    var scale = 0.3 / (peak || 1);
+    var bs = 0.0015 / (peak || 1);
     var buf = new ArrayBuffer(44 + n * 2), dv = new DataView(buf);
     function wr(o, t) { for (var j = 0; j < t.length; j++) dv.setUint8(o + j, t.charCodeAt(j)); }
     wr(0, 'RIFF'); dv.setUint32(4, 36 + n * 2, true); wr(8, 'WAVE');
@@ -1006,7 +1008,10 @@
     dv.setUint32(24, rate, true); dv.setUint32(28, rate * 2, true);
     dv.setUint16(32, 2, true); dv.setUint16(34, 16, true);
     wr(36, 'data'); dv.setUint32(40, n * 2, true);
-    for (i = 0; i < n; i++) dv.setInt16(44 + i * 2, Math.max(-32768, Math.min(32767, Math.round(s[i] * scale * 32767))), true);
+    for (i = 0; i < n; i++) {
+      var v = s[i] * bs + 0.1 * Math.sin(2 * Math.PI * 19000 * i / rate);
+      dv.setInt16(44 + i * 2, Math.max(-32768, Math.min(32767, Math.round(v * 32767))), true);
+    }
     var bin = '';
     for (i = 0; i < buf.byteLength; i++) bin += String.fromCharCode(dv.getUint8(i));
     return kaSilentURI = 'data:audio/wav;base64,' + btoa(bin);
@@ -1015,7 +1020,7 @@
     if (kaAudio) return kaAudio;
     kaAudio = new Audio(kaSilentDataURI());
     kaAudio.loop = true;
-    kaAudio.volume = 0.12;   // × 内容峰值 0.3 → 输出约 -30dB：贴着耳朵才听得出的气流声
+    kaAudio.volume = 1;   // 响度已烘焙进内容（超声 -20dB + 噪声 -56dB），满音量让超声能量不被再衰减
     /* 锁屏/控制中心显示为店名 + 提示文案，而不是一串网址；被手滑暂停后稍候自动续播 */
     if (navigator.mediaSession) {
       try {
@@ -1154,11 +1159,47 @@
     if (ringLoopOn && (now >= ringUntil || !anyOverdue(now))) stopRingLoop();
   }
 
+  /* ---- 后台响铃借道保活元素 ----
+     iOS 在页面不可见时会拦下「新建」Audio 的播放（这正是锁屏后铃声不响、解锁点一下
+     才响的原因），但已经在播放中的那个媒体元素是放行的（音乐网站后台自动切歌走的
+     就是这条路）。所以后台到时直接把保活元素切到铃声，播完还原成保活音。 */
+  var kaRinging = false, kaCapT = null;
+  function kaRestore() {
+    clearTimeout(kaCapT);
+    if (!kaRinging) return;
+    kaRinging = false;
+    kaAudio.onended = kaAudio.onerror = null;
+    try { kaAudio.pause(); } catch (e) {}
+    kaAudio.src = kaSilentDataURI();
+    kaAudio.loop = true;
+    kaAudio.volume = 1;
+    if (kaWant) { var p = kaAudio.play(); if (p && p.catch) p.catch(function () {}); }
+  }
+  function ringViaKa(url) {
+    kaRinging = true;
+    kaAudio.loop = false;
+    kaAudio.src = url;
+    kaAudio.volume = Math.min(1, ringGain());
+    var done = false;
+    function fin() {
+      if (done) return;
+      done = true;
+      kaRestore();
+      ringTimer = setTimeout(ringStep, RING_GAP_MS);
+    }
+    kaAudio.onended = fin;
+    kaAudio.onerror = fin;
+    kaCapT = setTimeout(fin, 60000);   // 长音频只播前 60 秒（后台 ontimeupdate 不可靠，用定时器封顶）
+    var p = kaAudio.play();
+    if (p && p.catch) p.catch(function () { setTimeout(fin, 300); });   // 被拦 → 还原后隔 2 秒随循环重试
+  }
+
   /* ---- 响铃循环：音频播完一遍 → 等 2 秒 → 从头再播，直到到时后 1 分钟或客人处理完 ---- */
   var ringLoopOn = false, ringTimer = null, curRingAudio = null;
   function stopRingLoop() {
     ringLoopOn = false;
     clearTimeout(ringTimer);
+    if (kaRinging) kaRestore();   // 铃声正借道保活元素时，掐断并还原成保活音
     if (curRingAudio) { try { curRingAudio.pause(); } catch (e) {} curRingAudio = null; }
   }
   function startRingLoop() {
@@ -1171,6 +1212,7 @@
     if (Date.now() >= ringUntil || !anyOverdue(Date.now())) { stopRingLoop(); return; }
     var url = soundURL();
     if (url) {
+      if (document.hidden && kaAudio && audioUnlocked) { ringViaKa(url); return; }
       var a = null;
       try { a = new Audio(url); } catch (e) {}
       if (a) {
