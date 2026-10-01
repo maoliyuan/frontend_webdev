@@ -144,7 +144,10 @@ img { image-rendering: pixelated; }
   background: #fffdf4;
   width: 92px;
 }
-.assign-row input.dur-inp { width: 80px; }
+.assign-row .dur-wrap { display: inline-flex; align-items: center; gap: 4px; }
+.assign-row .dur-wrap input.dur-inp { width: 56px; text-align: right; }
+.dur-unit { font-size: 13px; color: #6b5a43; }
+.dur-eq { font-size: 12px; color: #8a7a60; white-space: nowrap; }
 .gender-pick { display: flex; gap: 6px; }
 .g-b:not(.pbtn-gold), .g-g:not(.pbtn-gold) { opacity: .55; }
 

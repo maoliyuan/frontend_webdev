@@ -488,7 +488,7 @@
       var o = presetH.map(function (h) {
         return '<option value="' + h * 60 + '"' + (h * 60 === selMin ? ' selected' : '') + '>' + h + '小时</option>';
       }).join('');
-      o += '<option value="custom">自定义…</option>';
+      o += '<option value="custom">自定义（按分钟输入）…</option>';
       return o;
     }
     var rows = seatIds.map(function (id) {
@@ -531,27 +531,41 @@
           var sel = row.querySelector('.dur-sel');
           if (sel) { sel.value = v; }
           else {
-            var inp = row.querySelector('.dur-inp');
+            var wrap = row.querySelector('.dur-wrap');   // 连同「分钟」单位标签一起换回下拉
+            if (!wrap) return;
             var ns = document.createElement('select');
             ns.className = 'dur-sel';
             ns.innerHTML = durOptions(v);
             ns.value = v;
             ns.onchange = sel_onchange;
-            inp.replaceWith(ns);
+            wrap.replaceWith(ns);
           }
         });
         toast('已统一设为 ' + fmtDurCN(v * 60000));
       };
     });
-    function mkDurInput() {   // 自定义时长输入框：1~14 小时（分钟）
+    function mkDurInput() {   // 自定义时长输入框：单位=分钟；旁边常显「分钟」并实时换算成小时
+      var wrap = document.createElement('span');
+      wrap.className = 'dur-wrap';
       var inp = document.createElement('input');
       inp.type = 'number';
       inp.min = Math.max(MIN_DUR_MIN, DB.minStartMin);
       inp.max = MAX_DUR_MIN;
-      inp.placeholder = '分钟';
       inp.value = defMin;
       inp.className = 'dur-inp';
-      return inp;
+      var unit = document.createElement('span');
+      unit.className = 'dur-unit';
+      unit.textContent = '分钟';
+      var eq = document.createElement('span');
+      eq.className = 'dur-eq';
+      function updEq() {
+        var v = parseInt(inp.value, 10);
+        eq.textContent = (v >= 60 && v <= MAX_DUR_MIN) ? '（' + fmtDurCN(v * 60000) + '）' : '（1~14小时）';
+      }
+      inp.oninput = updEq;
+      updEq();
+      wrap.appendChild(inp); wrap.appendChild(unit); wrap.appendChild(eq);
+      return wrap;
     }
     function sel_onchange() {
       if (this.value === 'custom') this.replaceWith(mkDurInput());
