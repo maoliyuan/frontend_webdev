@@ -77,6 +77,7 @@
       if (!d.shopName || d.shopName === '拼豆小店') d.shopName = '魔法菠萝 Magic Pineapple';
     }
     if (d && d.soundVol == null) d.soundVol = 100;   // v5.1：音量条（幂等）
+    if (d && d.keepScreenOn == null) d.keepScreenOn = true;   // v5.2：挂钟模式默认开（幂等）
     return d;
   }
   function defaultData() {
@@ -87,6 +88,7 @@
       minExtendMin: 30,     // 加钟最小单位（分钟）
       sound: null,          // 自定义到时提示音 {name,size,url}，null=内置「叮咚」
       soundVol: 100,        // 响铃音量 0~100
+      keepScreenOn: true,   // 挂钟模式：有客人时屏幕常亮（防自动锁屏，前台到时必响）
       seats: {},            // seatId -> {pid, bid}
       batches: {},          // bid -> {id,note,start,members:{pid:{id,gender,variant,seatId,status,paid,fee,leftAt,end}}}
       reservations: [],
@@ -600,6 +602,9 @@
     DB.batches[bid] = batch;
     save(); setMode(null); closeModal();
     toast('开桌成功，' + seatIds.length + ' 人');
+    /* 立即渲染 + 趁开桌这个点击手势同步启动保活音频（iOS 只认手势内的首次播放，
+       靠 1 秒后的定时器启动可能被拒——这正是上一版锁屏不响的嫌疑之一） */
+    renderSeats();
   }
 
   /* ================= 结账（狗） ================= */
@@ -862,6 +867,7 @@
     document.getElementById('set-shop-name').value = DB.shopName;
     document.getElementById('set-min-start').value = DB.minStartMin;
     document.getElementById('set-min-extend').value = DB.minExtendMin;
+    document.getElementById('set-keep-screen').checked = DB.keepScreenOn !== false;
     renderSoundStatus();
     renderVol();
   }
@@ -876,6 +882,9 @@
   }
   bindNum('set-price', 'pricePerHour');
   bindNum('set-min-start', 'minStartMin', MIN_DUR_MIN, MAX_DUR_MIN);
+  document.getElementById('set-keep-screen').addEventListener('change', function () {
+    DB.keepScreenOn = this.checked; save(); keepAliveUpdate(); toast('设置已更新');
+  });
   bindNum('set-min-extend', 'minExtendMin');
   document.getElementById('set-shop-name').addEventListener('change', function () {
     DB.shopName = this.value.trim() || '魔法菠萝 Magic Pineapple';
@@ -966,29 +975,38 @@
 
   /* ================= 后台保活 =================
      iOS Safari 会冻结后台页面的 JS（定时器停 → 到时不响铃）；但只要页面在「播放媒体」，
-     系统就不冻结它。有客人在店时循环播放一段近无声音频（约 -80dB，人耳听不到）占住
-     音频会话，到时判断和响铃在切后台/锁屏时就能照常工作。不能设 muted：那样系统
-     不认为在出声，页面照样会被挂起。 */
+     系统就不冻结它。有客人在店时循环播放一段很轻的棕噪声（输出约 -30dB，像远处气流）
+     占住音频会话，到时判断和响铃在切后台/锁屏时就能照常工作。注意：不能无声也不能
+     muted——iOS 15.4 起 WebKit 会判定「没在真正出声」，照样把页面挂起。 */
   var kaAudio = null, kaWant = false, kaResumeAt = 0;
+  var kaLastTickAt = Date.now(), kaFreezeInfo = null;   // 后台冻结检测用
   function kaCount() {
     var n = 0;
     Object.keys(DB.batches).forEach(function (bid) { n += activeMembers(DB.batches[bid]).length; });
     return n;
   }
-  /* 一段 1 秒 440Hz、振幅 3/32767（约 -80dB，任何设备都听不到）的正弦 WAV；
-     整数个周期保证 loop 接缝无爆音；data: 内嵌，不依赖仓库文件 */
+  /* 一段 2 秒的棕噪声循环（白噪声积分，能量集中在低频，听感像轻微气流）：去趋势保证
+     loop 接缝连续无爆音；data: 内嵌，不依赖仓库文件 */
   var kaSilentURI = null;
   function kaSilentDataURI() {
     if (kaSilentURI) return kaSilentURI;
-    var rate = 8000, n = 8000;
+    var rate = 8000, n = 16000;
+    var s = new Float32Array(n), last = 0, peak = 0, i;
+    for (i = 0; i < n; i++) {
+      last = (last + (Math.random() * 2 - 1) * 0.02) / 1.02;
+      s[i] = last * 3.5;
+    }
+    for (i = 0; i < n; i++) s[i] -= (s[n - 1] - s[0]) * i / n;   // 去趋势：首尾相接无缝循环
+    for (i = 0; i < n; i++) peak = Math.max(peak, Math.abs(s[i]));
+    var scale = 0.3 / (peak || 1);
     var buf = new ArrayBuffer(44 + n * 2), dv = new DataView(buf);
-    function wr(o, s) { for (var i = 0; i < s.length; i++) dv.setUint8(o + i, s.charCodeAt(i)); }
+    function wr(o, t) { for (var j = 0; j < t.length; j++) dv.setUint8(o + j, t.charCodeAt(j)); }
     wr(0, 'RIFF'); dv.setUint32(4, 36 + n * 2, true); wr(8, 'WAVE');
     wr(12, 'fmt '); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
     dv.setUint32(24, rate, true); dv.setUint32(28, rate * 2, true);
     dv.setUint16(32, 2, true); dv.setUint16(34, 16, true);
     wr(36, 'data'); dv.setUint32(40, n * 2, true);
-    for (var i = 0; i < n; i++) dv.setInt16(44 + i * 2, Math.round(3 * Math.sin(2 * Math.PI * 440 * i / rate)), true);
+    for (i = 0; i < n; i++) dv.setInt16(44 + i * 2, Math.max(-32768, Math.min(32767, Math.round(s[i] * scale * 32767))), true);
     var bin = '';
     for (i = 0; i < buf.byteLength; i++) bin += String.fromCharCode(dv.getUint8(i));
     return kaSilentURI = 'data:audio/wav;base64,' + btoa(bin);
@@ -997,6 +1015,7 @@
     if (kaAudio) return kaAudio;
     kaAudio = new Audio(kaSilentDataURI());
     kaAudio.loop = true;
+    kaAudio.volume = 0.12;   // × 内容峰值 0.3 → 输出约 -30dB：贴着耳朵才听得出的气流声
     /* 锁屏/控制中心显示为店名 + 提示文案，而不是一串网址；被手滑暂停后稍候自动续播 */
     if (navigator.mediaSession) {
       try {
@@ -1012,6 +1031,7 @@
   }
   function keepAliveUpdate(activeN) {
     kaWant = audioUnlocked && (activeN != null ? activeN : kaCount()) > 0;
+    wakeLockUpdate();
     if (!kaWant) { if (kaAudio) { try { kaAudio.pause(); } catch (e) {} } return; }
     ensureKa();
     if (kaAudio.paused && Date.now() >= kaResumeAt) {
@@ -1019,9 +1039,31 @@
       if (p && p.catch) p.catch(function () { kaResumeAt = Date.now() + 10000; });
     }
   }
-  /* 回到前台：立即刷新界面并恢复保活（页面若在后台被冻结过，恢复后靠这里续上） */
+  /* 挂钟模式：有客人时申请屏幕常亮（Wake Lock，iOS 16.4+）。页面保持前台到时必响，
+     是保活之外的保底；用户手动按电源键锁屏不受影响 */
+  var wlSentinel = null;
+  function wakeLockUpdate() {
+    var want = DB.keepScreenOn !== false && kaWant && !document.hidden && !!(navigator.wakeLock && navigator.wakeLock.request);
+    if (want && !wlSentinel) {
+      navigator.wakeLock.request('screen').then(function (s) {
+        wlSentinel = s;
+        s.addEventListener('release', function () { wlSentinel = null; });
+        if (!(DB.keepScreenOn !== false && kaWant && !document.hidden)) { try { s.release(); } catch (e) {} }
+      }).catch(function () { wlSentinel = null; });
+    } else if (!want && wlSentinel) {
+      try { wlSentinel.release(); } catch (e) {}
+    }
+  }
+  /* 回到前台：立即刷新界面并恢复保活；若后台心跳断档超过 5 秒，说明页面被系统冻结过，
+     记录下来（设置页可查）并当场提示，方便判断保活是否真的扛住了 */
   document.addEventListener('visibilitychange', function () {
-    if (!document.hidden) { kaResumeAt = 0; keepAliveUpdate(); renderSeats(); }
+    if (document.hidden) return;
+    var gap = Date.now() - kaLastTickAt;
+    if (gap > 5000 && kaWant) {
+      kaFreezeInfo = { at: Date.now(), gap: gap };
+      toast('⚠️ 页面在后台被系统冻结 ' + Math.round(gap / 1000) + ' 秒，保活没扛住');
+    }
+    kaResumeAt = 0; keepAliveUpdate(); renderSeats();
   });
 
   /* 音量：100 = 原始音量；滑块最高 200，超过 100 的部分走 Web Audio 放大 */
@@ -1173,8 +1215,9 @@
       : repoSoundUrl
         ? '当前提示音：仓库默认音频 ' + repoSoundUrl + '（全设备生效，替换仓库同名文件再部署即可换声）'
         : '当前是内置「叮咚」声；把音频命名为 alert.mp3 放进仓库 assets/ 可设为全站默认，或在设置里上传（仅本机，2MB 内）')
-      + '<br>有客人在店时自动开启后台保活：iPhone 切后台 / 锁屏到时也响铃（控制中心会显示「'
-      + esc(DB.shopName || '') + ' · 计时中」，别去暂停它）'
+      + '<br>后台保活：' + (kaAudio && !kaAudio.paused ? '运行中' : '待命（有客人且点过页面后自动启动）')
+      + '；iPhone 切后台 / 锁屏到时也响铃（控制中心显示「' + esc(DB.shopName || '') + ' · 计时中」，别去暂停）'
+      + (kaFreezeInfo ? '；⚠️ 上次后台被系统冻结 ' + Math.round(kaFreezeInfo.gap / 1000) + ' 秒（' + fmtHM(kaFreezeInfo.at) + '）' : '')
       + (soundURL() ? '' : '；注意：内置「叮咚」仅前台能响，后台响铃需用上传或仓库音频');
   }
   document.getElementById('btn-sound-pick').onclick = function () { document.getElementById('sound-file').click(); };
@@ -1297,6 +1340,7 @@
   buildRoom();
   renderSeats();
   setInterval(function () {
+    kaLastTickAt = Date.now();   // 心跳：回前台时对比时间差即可判断后台有没有被冻结
     if (document.hidden) {   // 后台/锁屏：不画界面，只查到时和维持保活（保活生效时本行才会被执行）
       checkAlarms(Date.now());
       keepAliveUpdate();

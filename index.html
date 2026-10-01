@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>魔法菠萝 Magic Pineapple · 座位管理</title>
-<link rel="stylesheet" href="styles.css?v=5">
+<link rel="stylesheet" href="styles.css?v=6">
 </head>
 <body>
 
@@ -96,6 +96,7 @@
           <input type="range" id="set-sound-vol" min="0" max="500" step="5" value="100">
           <span class="vol-num" id="vol-num">100%</span>
         </div>
+        <label class="check-row"><input type="checkbox" id="set-keep-screen"><span>屏幕常亮（挂钟模式）：有客人时防止自动锁屏，页面在前台到时必响；手动按电源键锁屏不受影响</span></label>
         <p class="hint">100% = 音频原始音量；最高可放大到 500%（自动防爆音；放大仅前台生效，后台按原始音量响）</p>
         </div>
       <p class="hint" id="sound-status"></p>
@@ -123,6 +124,6 @@
 <div id="sound-hint" class="sound-hint hidden">🔔 到时提示音还没就绪：用鼠标点一下页面任意位置即可（浏览器要求先点击才能播放声音）</div>
 <div id="toast" class="toast hidden"></div>
 
-<script src="app.js"></script>
+<script src="app.js?v=2"></script>
 </body>
 </html>
