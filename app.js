@@ -942,15 +942,79 @@
     audioUnlocked = true;
     var el = document.getElementById('sound-hint');
     if (el) el.classList.add('hidden');
+    /* 趁手势在场先把保活音频「激活」（iOS 只认手势内的首次播放），没客人时马上又会暂停 */
+    ensureKa().play().catch(function () {});
+    keepAliveUpdate();
   }
   document.addEventListener('pointerdown', unlockAudio, { passive: true });
   document.addEventListener('keydown', unlockAudio, { passive: true });
+
+  /* ================= 后台保活 =================
+     iOS Safari 会冻结后台页面的 JS（定时器停 → 到时不响铃）；但只要页面在「播放媒体」，
+     系统就不冻结它。有客人在店时循环播放一段近无声音频（约 -80dB，人耳听不到）占住
+     音频会话，到时判断和响铃在切后台/锁屏时就能照常工作。不能设 muted：那样系统
+     不认为在出声，页面照样会被挂起。 */
+  var kaAudio = null, kaWant = false, kaResumeAt = 0;
+  function kaCount() {
+    var n = 0;
+    Object.keys(DB.batches).forEach(function (bid) { n += activeMembers(DB.batches[bid]).length; });
+    return n;
+  }
+  /* 一段 1 秒 440Hz、振幅 3/32767（约 -80dB，任何设备都听不到）的正弦 WAV；
+     整数个周期保证 loop 接缝无爆音；data: 内嵌，不依赖仓库文件 */
+  var kaSilentURI = null;
+  function kaSilentDataURI() {
+    if (kaSilentURI) return kaSilentURI;
+    var rate = 8000, n = 8000;
+    var buf = new ArrayBuffer(44 + n * 2), dv = new DataView(buf);
+    function wr(o, s) { for (var i = 0; i < s.length; i++) dv.setUint8(o + i, s.charCodeAt(i)); }
+    wr(0, 'RIFF'); dv.setUint32(4, 36 + n * 2, true); wr(8, 'WAVE');
+    wr(12, 'fmt '); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
+    dv.setUint32(24, rate, true); dv.setUint32(28, rate * 2, true);
+    dv.setUint16(32, 2, true); dv.setUint16(34, 16, true);
+    wr(36, 'data'); dv.setUint32(40, n * 2, true);
+    for (var i = 0; i < n; i++) dv.setInt16(44 + i * 2, Math.round(3 * Math.sin(2 * Math.PI * 440 * i / rate)), true);
+    var bin = '';
+    for (i = 0; i < buf.byteLength; i++) bin += String.fromCharCode(dv.getUint8(i));
+    return kaSilentURI = 'data:audio/wav;base64,' + btoa(bin);
+  }
+  function ensureKa() {
+    if (kaAudio) return kaAudio;
+    kaAudio = new Audio(kaSilentDataURI());
+    kaAudio.loop = true;
+    /* 锁屏/控制中心显示为店名 + 提示文案，而不是一串网址；被手滑暂停后稍候自动续播 */
+    if (navigator.mediaSession) {
+      try {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: (DB.shopName || '') + ' · 计时中', artist: '到时自动响铃，请勿暂停'
+        });
+      } catch (e) {}
+    }
+    kaAudio.addEventListener('pause', function () {
+      if (kaWant) kaResumeAt = Date.now() + 2000;   // 系统或手滑暂停 → 2 秒后续上
+    });
+    return kaAudio;
+  }
+  function keepAliveUpdate(activeN) {
+    kaWant = audioUnlocked && (activeN != null ? activeN : kaCount()) > 0;
+    if (!kaWant) { if (kaAudio) { try { kaAudio.pause(); } catch (e) {} } return; }
+    ensureKa();
+    if (kaAudio.paused && Date.now() >= kaResumeAt) {
+      var p = kaAudio.play();
+      if (p && p.catch) p.catch(function () { kaResumeAt = Date.now() + 10000; });
+    }
+  }
+  /* 回到前台：立即刷新界面并恢复保活（页面若在后台被冻结过，恢复后靠这里续上） */
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) { kaResumeAt = 0; keepAliveUpdate(); renderSeats(); }
+  });
 
   /* 音量：100 = 原始音量；滑块最高 200，超过 100 的部分走 Web Audio 放大 */
   function ringGain() { return (DB.soundVol == null ? 100 : DB.soundVol) / 100; }
   /* 自定义音频出声：≤100% 直接用元素音量；>100% 接进 Web Audio 做增益放大 + 压限防爆音 */
   function playCustomAudio(a, gain) {
     if (gain <= 1) { a.volume = gain; return; }
+    if (document.hidden) { a.volume = 1; return; }   // 后台时 AudioContext 被挂起，接上反而不出声，退回原始音量
     var ctx = getCtx(), src = null;
     try { src = ctx && ctx.createMediaElementSource(a); } catch (e) {}
     if (!src) { a.volume = 1; return; }
@@ -1077,22 +1141,26 @@
   }
   /* 有客人在店、但声音还没解锁时，挂一条提示（点一下页面就好） */
   function updateSoundHint() {
+    var n = 0;
+    Object.keys(DB.batches).forEach(function (bid) { n += activeMembers(DB.batches[bid]).length; });
+    keepAliveUpdate(n);   // 顺带维护后台保活：有客人 = 需要保活
     if (audioUnlocked) return;
     var el = document.getElementById('sound-hint');
     if (!el) return;
-    var n = 0;
-    Object.keys(DB.batches).forEach(function (bid) { n += activeMembers(DB.batches[bid]).length; });
     el.classList.toggle('hidden', n === 0);
   }
 
   /* ---- 设置里的提示音上传/试听 ---- */
   function renderSoundStatus() {
     var el = document.getElementById('sound-status');
-    el.innerHTML = DB.sound
+    el.innerHTML = (DB.sound
       ? '当前提示音：' + esc(DB.sound.name) + '（' + Math.round((DB.sound.size || 0) / 1024) + 'KB · 本机临时覆盖，点「恢复默认」取消）'
       : repoSoundUrl
         ? '当前提示音：仓库默认音频 ' + repoSoundUrl + '（全设备生效，替换仓库同名文件再部署即可换声）'
-        : '当前是内置「叮咚」声；把音频命名为 alert.mp3 放进仓库 assets/ 可设为全站默认，或在设置里上传（仅本机，2MB 内）';
+        : '当前是内置「叮咚」声；把音频命名为 alert.mp3 放进仓库 assets/ 可设为全站默认，或在设置里上传（仅本机，2MB 内）')
+      + '<br>有客人在店时自动开启后台保活：iPhone 切后台 / 锁屏到时也响铃（控制中心会显示「'
+      + esc(DB.shopName || '') + ' · 计时中」，别去暂停它）'
+      + (soundURL() ? '' : '；注意：内置「叮咚」仅前台能响，后台响铃需用上传或仓库音频');
   }
   document.getElementById('btn-sound-pick').onclick = function () { document.getElementById('sound-file').click(); };
   /* 选择器按扩展名列格式（部分系统对 .m4a/.mp3 没有 MIME 映射，文件在弹窗里发灰选不中）；
@@ -1213,5 +1281,12 @@
   initAlarmed();
   buildRoom();
   renderSeats();
-  setInterval(renderSeats, 1000);
+  setInterval(function () {
+    if (document.hidden) {   // 后台/锁屏：不画界面，只查到时和维持保活（保活生效时本行才会被执行）
+      checkAlarms(Date.now());
+      keepAliveUpdate();
+      return;
+    }
+    renderSeats();
+  }, 1000);
 })();
