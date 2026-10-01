@@ -507,7 +507,7 @@
       '</div></div>' +
       '<label class="field"><span>批次备注（方便认人，可空）</span><input type="text" id="ot-note" placeholder="例如：红衣服 / 拼单"></label>' +
       '<p class="hint">' + DB.pricePerHour + ' 元/人/小时 · 保底 ' + fmtDurCN(DB.minStartMin * 60000) +
-      ' · 时长 1~14 小时 · 现在开始（' + fmtHM(Date.now()) + '）</p>';
+      ' · 预设 1~14 小时，自定义可精确到分钟 · 现在开始（' + fmtHM(Date.now()) + '）</p>';
 
     openModal('开桌 · ' + seatIds.length + ' 个座位', body, [
       { text: '取消', onClick: closeModal },
@@ -549,7 +549,7 @@
       wrap.className = 'dur-wrap';
       var inp = document.createElement('input');
       inp.type = 'number';
-      inp.min = Math.max(MIN_DUR_MIN, DB.minStartMin);
+      inp.min = 1;   // 自定义允许 1 分钟起（输 1 就是真的 1 分钟，不再被抬到 1 小时）
       inp.max = MAX_DUR_MIN;
       inp.value = defMin;
       inp.className = 'dur-inp';
@@ -560,7 +560,7 @@
       eq.className = 'dur-eq';
       function updEq() {
         var v = parseInt(inp.value, 10);
-        eq.textContent = (v >= 60 && v <= MAX_DUR_MIN) ? '（' + fmtDurCN(v * 60000) + '）' : '（1~14小时）';
+        eq.textContent = (v >= 1 && v <= MAX_DUR_MIN) ? '（' + fmtDurCN(v * 60000) + '）' : '（1分钟~14小时）';
       }
       inp.oninput = updEq;
       updEq();
@@ -586,7 +586,8 @@
       if (sel) mins = parseInt(sel.value, 10);
       else mins = parseInt(row.querySelector('.dur-inp').value, 10);
       var lo = Math.max(MIN_DUR_MIN, DB.minStartMin);
-      if (!mins || mins < lo) mins = lo;
+      /* 没填/非法才回退到默认下限；自定义填了就当故意的：允许小于 1 小时（计费仍走保底规则） */
+      if (!mins || mins < 1) mins = lo;
       if (mins > MAX_DUR_MIN) mins = MAX_DUR_MIN;
       var pid = uid('p');
       batch.members[pid] = {
