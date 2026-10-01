@@ -1,0 +1,195 @@
+/* 会员管理 · 移动端优先样式 */
+:root {
+  --blue: #1a6cff;
+  --blue-dark: #0f54cc;
+  --red: #e5484d;
+  --green: #30a46c;
+  --bg: #f2f4f8;
+  --card: #ffffff;
+  --text: #1c2024;
+  --text2: #667085;
+  --line: #e4e7ec;
+  --radius: 14px;
+  --shadow: 0 1px 3px rgba(16, 24, 40, .08);
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1.5;
+}
+.hidden { display: none !important; }
+body.busy { pointer-events: none; }
+
+/* ---------- 登录页 ---------- */
+#view-login {
+  min-height: 100vh; min-height: 100dvh;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+  padding-bottom: calc(24px + env(safe-area-inset-bottom));
+  background: linear-gradient(160deg, #eaf1ff 0%, var(--bg) 60%);
+}
+.login-card {
+  width: 100%; max-width: 380px;
+  background: var(--card); border-radius: 20px; box-shadow: var(--shadow);
+  padding: 32px 24px; text-align: center;
+}
+.login-logo { font-size: 56px; line-height: 1; }
+.login-card h1 { margin: 12px 0 4px; font-size: 24px; }
+.login-sub { margin: 0 0 24px; color: var(--text2); font-size: 14px; }
+.login-err { color: var(--red); min-height: 22px; margin: 12px 0 0; font-size: 14px; }
+
+/* ---------- 大输入 ---------- */
+.field-big { display: block; text-align: left; margin-bottom: 16px; }
+.field-big span { display: block; font-size: 14px; color: var(--text2); margin-bottom: 6px; }
+.field-big input, .field-big textarea {
+  width: 100%; font-size: 17px;                /* ≥16px 防 iOS 聚焦缩放 */
+  padding: 13px 14px; border: 1.5px solid var(--line); border-radius: 12px;
+  background: #fff; color: var(--text); outline: none;
+  font-family: inherit;
+}
+.field-big input:focus, .field-big textarea:focus { border-color: var(--blue); }
+
+/* ---------- 按钮 ---------- */
+.btn {
+  border: none; border-radius: 12px; font-size: 16px; font-family: inherit;
+  padding: 12px 18px; cursor: pointer; background: #eef1f6; color: var(--text);
+  min-height: 48px;
+}
+.btn:active { transform: scale(.97); }
+.btn:disabled { opacity: .45; }
+.btn-primary { background: var(--blue); color: #fff; font-weight: 600; }
+.btn-primary:active { background: var(--blue-dark); }
+.btn-danger { background: var(--red); color: #fff; font-weight: 600; }
+.btn-danger-outline { background: #fff; color: var(--red); border: 1.5px solid var(--red); }
+.btn-ghost { background: transparent; color: var(--blue); }
+.btn-xl { font-size: 18px; min-height: 56px; flex: 1; }
+.btn-block { display: block; width: 100%; margin-bottom: 10px; text-align: left; }
+.btn-icon { min-height: 40px; padding: 4px 12px; font-size: 20px; background: transparent; }
+
+/* ---------- 顶栏 / 搜索 ---------- */
+.topbar {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--blue); color: #fff;
+  padding: 12px 16px;
+  padding-top: calc(12px + env(safe-area-inset-top));
+}
+.topbar-title { font-size: 18px; font-weight: 600; }
+.searchbar {
+  position: sticky; top: calc(56px + env(safe-area-inset-top)); z-index: 19;
+  display: flex; align-items: center; gap: 8px;
+  background: var(--bg); padding: 10px 14px;
+}
+#search {
+  flex: 1; font-size: 17px; padding: 12px 14px;
+  border: 1.5px solid var(--line); border-radius: 12px; background: #fff; outline: none;
+}
+#search:focus { border-color: var(--blue); }
+.search-count { color: var(--text2); font-size: 13px; white-space: nowrap; }
+.demo-banner {
+  background: #fff7e0; color: #8a6116; font-size: 13px;
+  padding: 8px 14px; border-bottom: 1px solid #f3e3b3;
+}
+
+/* ---------- 会员列表 ---------- */
+.member-list { padding: 4px 14px 110px; }
+.member-card {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 14px 16px; margin-bottom: 10px; cursor: pointer;
+}
+.member-card:active { background: #f7f9fc; }
+.mc-info { flex: 1; min-width: 0; }
+.mc-name { font-size: 18px; font-weight: 600; }
+.mc-phone { color: var(--text2); font-size: 14px; margin-top: 2px; }
+.mc-count {
+  font-size: 26px; font-weight: 700; color: var(--blue); white-space: nowrap;
+}
+.mc-count small { font-size: 12px; font-weight: 400; margin-left: 2px; color: var(--text2); }
+.mc-count.low { color: var(--red); }
+.empty { text-align: center; color: var(--text2); padding: 48px 20px; font-size: 15px; line-height: 2; }
+.empty-err { color: var(--red); white-space: pre-wrap; }
+
+/* ---------- 悬浮新增按钮 ---------- */
+.fab {
+  position: fixed; right: 20px;
+  bottom: calc(24px + env(safe-area-inset-bottom));
+  width: 60px; height: 60px; border-radius: 50%;
+  background: var(--blue); color: #fff; font-size: 32px; line-height: 1;
+  border: none; box-shadow: 0 6px 16px rgba(26, 108, 255, .4); cursor: pointer;
+  display: flex; align-items: center; justify-content: center; padding-bottom: 4px;
+}
+.fab:active { transform: scale(.94); background: var(--blue-dark); }
+
+/* ---------- 底部弹层 ---------- */
+.mask {
+  position: fixed; inset: 0; z-index: 50;
+  background: rgba(16, 24, 40, .45);
+  display: flex; align-items: flex-end; justify-content: center;
+}
+.sheet {
+  background: #fff; width: 100%; max-width: 560px;
+  border-radius: 20px 20px 0 0;
+  padding: 8px 18px calc(20px + env(safe-area-inset-bottom));
+  max-height: 88vh; overflow-y: auto;
+  animation: sheetUp .18s ease-out;
+}
+.sheet-tall { max-height: 92vh; }
+@keyframes sheetUp { from { transform: translateY(40px); opacity: .6; } to { transform: none; opacity: 1; } }
+.sheet-grab { width: 40px; height: 4px; border-radius: 2px; background: var(--line); margin: 6px auto 12px; }
+.sheet h3 { margin: 0 0 14px; font-size: 18px; }
+
+/* ---------- 会员详情 ---------- */
+.member-head { text-align: center; padding: 4px 0 16px; }
+.member-name { font-size: 22px; font-weight: 700; }
+.member-phone { color: var(--text2); margin-top: 2px; }
+.member-note { color: var(--text2); font-size: 14px; margin-top: 6px; }
+.count-big { margin-top: 12px; font-size: 44px; font-weight: 800; color: var(--blue); }
+.count-big small { font-size: 15px; font-weight: 400; color: var(--text2); margin-left: 4px; }
+.op-row { display: flex; gap: 10px; margin: 6px 0 10px; }
+
+/* 快捷充值 chips：默认折叠，点「充值」展开 */
+.chip-row { display: none; gap: 10px; margin-bottom: 10px; }
+.chip-row.open { display: flex; }
+.chip {
+  flex: 1; min-height: 48px; border-radius: 12px; border: 1.5px solid var(--blue);
+  background: #fff; color: var(--blue); font-size: 17px; font-weight: 600; cursor: pointer;
+}
+.chip:active { background: #eaf1ff; }
+.link-row { display: flex; gap: 6px; margin-top: 4px; }
+.link-row .btn { flex: 1; font-size: 14px; min-height: 42px; }
+
+/* ---------- 变动记录 ---------- */
+.tx-list { min-height: 80px; }
+.tx-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 12px 2px; border-bottom: 1px solid var(--line);
+}
+.tx-main { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.tx-delta { font-size: 20px; font-weight: 700; }
+.tx-delta.pos { color: var(--green); }
+.tx-delta.neg { color: var(--red); }
+.tx-after { color: var(--text2); font-size: 14px; }
+.tx-note { font-size: 13px; color: var(--text2); background: #f2f4f8; padding: 1px 8px; border-radius: 6px; }
+.tx-time { color: var(--text2); font-size: 12px; white-space: nowrap; }
+
+/* ---------- toast ---------- */
+.toast {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: calc(96px + env(safe-area-inset-bottom));
+  background: rgba(28, 32, 36, .92); color: #fff;
+  padding: 12px 20px; border-radius: 12px; font-size: 15px;
+  max-width: 86vw; text-align: center; z-index: 99;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .25);
+}
+
+/* ---------- 桌面端微调 ---------- */
+@media (min-width: 640px) {
+  .member-list { max-width: 640px; margin: 0 auto; }
+  .searchbar { justify-content: center; }
+  .searchbar #search { max-width: 612px; }
+}

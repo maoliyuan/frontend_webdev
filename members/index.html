@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1a6cff">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title>会员管理</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>👤</text></svg>">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- ====== 登录页 ====== -->
+  <div id="view-login" class="view hidden">
+    <div class="login-card">
+      <div class="login-logo">👤</div>
+      <h1>会员管理</h1>
+      <p class="login-sub" id="login-sub">店主登录</p>
+      <label class="field-big">
+        <span>邮箱</span>
+        <input type="email" id="login-email" autocomplete="username" placeholder="you@example.com">
+      </label>
+      <label class="field-big">
+        <span>密码</span>
+        <input type="password" id="login-pass" autocomplete="current-password" placeholder="••••••••">
+      </label>
+      <button class="btn btn-primary btn-xl" id="btn-login">登 录</button>
+      <button class="btn btn-ghost hidden" id="btn-demo">未配置数据库？进入演示模式</button>
+      <p class="login-err" id="login-err"></p>
+    </div>
+  </div>
+
+  <!-- ====== 主页 ====== -->
+  <div id="view-app" class="view hidden">
+    <header class="topbar">
+      <div class="topbar-title">👤 会员管理</div>
+      <button class="btn btn-icon" id="btn-menu" title="菜单">☰</button>
+    </header>
+
+    <div class="searchbar">
+      <input type="search" id="search" placeholder="搜姓名 / 手机号（输尾号也行）" autocomplete="off">
+      <span class="search-count" id="search-count"></span>
+    </div>
+
+    <div class="demo-banner hidden" id="demo-banner">演示模式：未连接数据库，数据仅存本机浏览器</div>
+
+    <main id="member-list" class="member-list"></main>
+
+    <button class="fab" id="btn-add" title="新增会员">＋</button>
+  </div>
+
+  <!-- ====== 底部弹层：会员详情/操作 ====== -->
+  <div class="mask hidden" id="mask">
+    <div class="sheet" id="sheet-member">
+      <div class="sheet-grab"></div>
+      <div class="member-head">
+        <div class="member-name" id="m-name"></div>
+        <div class="member-phone" id="m-phone"></div>
+        <div class="member-note" id="m-note"></div>
+        <div class="count-big"><span id="m-count">0</span><small>次</small></div>
+      </div>
+      <div class="op-row">
+        <button class="btn btn-danger btn-xl" id="btn-redeem-1">核销一次</button>
+        <button class="btn btn-primary btn-xl" id="btn-charge-menu">充值</button>
+      </div>
+      <div class="chip-row" id="charge-chips">
+        <button class="chip" data-delta="1">＋1</button>
+        <button class="chip" data-delta="5">＋5</button>
+        <button class="chip" data-delta="10">＋10</button>
+        <button class="chip" data-delta="">自定义</button>
+      </div>
+      <div class="link-row">
+        <button class="btn btn-ghost" id="btn-edit">✏️ 编辑资料</button>
+        <button class="btn btn-ghost" id="btn-history">📜 变动记录</button>
+        <button class="btn btn-ghost" id="btn-redeem-custom">－ 自定义核销</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== 弹层：自定义金额 ====== -->
+  <div class="mask hidden" id="mask-amount">
+    <div class="sheet" id="sheet-amount">
+      <div class="sheet-grab"></div>
+      <h3 id="amount-title">充值</h3>
+      <label class="field-big">
+        <span>次数（正整数）</span>
+        <input type="number" id="amount-input" min="1" step="1" inputmode="numeric" placeholder="如 5">
+      </label>
+      <label class="field-big">
+        <span>备注（可不填）</span>
+        <input type="text" id="amount-note" placeholder="如 微信收款 / 手滑冲正">
+      </label>
+      <div class="op-row">
+        <button class="btn btn-ghost" id="btn-amount-cancel">取消</button>
+        <button class="btn btn-primary btn-xl" id="btn-amount-ok">确 定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== 弹层：新增/编辑会员 ====== -->
+  <div class="mask hidden" id="mask-form">
+    <div class="sheet" id="sheet-form">
+      <div class="sheet-grab"></div>
+      <h3 id="form-title">新增会员</h3>
+      <label class="field-big">
+        <span>姓名 *</span>
+        <input type="text" id="f-name" maxlength="30" placeholder="会员姓名">
+      </label>
+      <label class="field-big">
+        <span>手机号</span>
+        <input type="tel" id="f-phone" maxlength="20" inputmode="numeric" placeholder="11 位手机号">
+      </label>
+      <label class="field-big" id="f-init-wrap">
+        <span>初始次数（也可之后充值）</span>
+        <input type="number" id="f-init" min="0" step="1" inputmode="numeric" placeholder="0">
+      </label>
+      <label class="field-big">
+        <span>备注</span>
+        <textarea id="f-note" rows="2" maxlength="200" placeholder="喜好、办卡信息等（可不填）"></textarea>
+      </label>
+      <div class="op-row">
+        <button class="btn btn-ghost" id="btn-form-cancel">取消</button>
+        <button class="btn btn-primary btn-xl" id="btn-form-save">保 存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== 弹层：变动记录 ====== -->
+  <div class="mask hidden" id="mask-history">
+    <div class="sheet sheet-tall" id="sheet-history">
+      <div class="sheet-grab"></div>
+      <h3 id="history-title">变动记录</h3>
+      <div class="tx-list" id="tx-list"></div>
+      <div class="op-row">
+        <button class="btn btn-ghost" id="btn-history-close">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== 弹层：菜单（导出/退出） ====== -->
+  <div class="mask hidden" id="mask-menu">
+    <div class="sheet" id="sheet-menu">
+      <div class="sheet-grab"></div>
+      <h3>菜单</h3>
+      <button class="btn btn-block" id="btn-export-json">📦 导出全部数据（JSON 备份）</button>
+      <button class="btn btn-block" id="btn-export-csv">📊 导出 CSV（会员 + 记录两个文件）</button>
+      <button class="btn btn-block" id="btn-refresh">🔄 刷新数据</button>
+      <button class="btn btn-block btn-danger-outline" id="btn-logout">🚪 退出登录</button>
+      <div class="op-row">
+        <button class="btn btn-ghost" id="btn-menu-close">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
