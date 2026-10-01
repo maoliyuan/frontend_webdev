@@ -118,13 +118,13 @@ body.busy { pointer-events: none; }
 .fab {
   position: fixed; right: 16px;
   bottom: calc(24px + env(safe-area-inset-bottom));
-  min-height: 56px; padding: 0 22px 0 16px; border-radius: 28px;
-  background: var(--blue); color: #fff; font-size: 18px; font-weight: 600;
+  min-height: 50px; padding: 0 16px; border-radius: 12px;
+  background: var(--blue); color: #fff; font-size: 15px; font-weight: 500;
   border: none; box-shadow: 0 6px 16px rgba(26, 108, 255, .4); cursor: pointer;
   display: flex; align-items: center; justify-content: center; gap: 6px;
   font-family: inherit;
 }
-.fab-plus { font-size: 26px; font-weight: 700; line-height: 1; margin-top: -2px; }
+.fab-plus { font-size: 20px; font-weight: 700; line-height: 1; }
 .fab:active { transform: scale(.94); background: var(--blue-dark); }
 
 /* ---------- 底部弹层 ---------- */
