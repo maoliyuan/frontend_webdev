@@ -40,7 +40,7 @@ body.busy { pointer-events: none; }
 .login-logo { font-size: 56px; line-height: 1; }
 .login-card h1 { margin: 12px 0 4px; font-size: 24px; }
 .login-sub { margin: 0 0 24px; color: var(--text2); font-size: 14px; }
-.login-err { color: var(--red); min-height: 22px; margin: 12px 0 0; font-size: 14px; }
+.login-err { color: var(--red); min-height: 22px; margin: 12px 0 0; font-size: 14px; white-space: pre-line; text-align: left; }
 
 /* ---------- 大输入 ---------- */
 .field-big { display: block; text-align: left; margin-bottom: 16px; }

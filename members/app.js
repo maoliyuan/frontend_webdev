@@ -33,7 +33,7 @@
     var m = String((e && (e.message || e.error_description || e.msg)) || e || '未知错误');
     if (/invalid login credentials/i.test(m)) return '邮箱或密码不正确';
     if (/email not confirmed/i.test(m)) return '邮箱还没验证：去 Supabase 后台 Authentication → Users 把该用户标为已确认';
-    if (/failed to fetch|networkerror|fetch failed/i.test(m)) return '网络连接失败，请检查网络后重试';
+    if (/failed to fetch|networkerror|fetch failed|load failed/i.test(m)) return '网络连接失败：这台设备连不上数据库服务器';
     if (/剩余次数不足/.test(m)) return m;
     if (/JWT|token/i.test(m) && /expir/i.test(m)) return '登录已过期，请重新登录';
     return m;
@@ -444,12 +444,37 @@
   };
 
   /* ================= 登录 ================= */
+  function isNetErr(e) {
+    return /load failed|failed to fetch|networkerror|fetch failed/i.test(String((e && e.message) || e));
+  }
+  /* 网络失败后自动探测数据库服务器，把结论直接告诉店主 */
+  function diagnoseNet(cb) {
+    var hint = '网络连接失败：这台设备连不上数据库服务器。\n请依次尝试：\n① WiFi 和蜂窝数据互切\n② 关闭 VPN / 代理类 App\n③ 设置 → [你的名字] → iCloud → 专用代理(私人中继) 关闭\n④ 设置 → 通用 → 日期与时间 → 打开自动设置';
+    if (backend.kind !== 'supabase') { cb(hint); return; }
+    var done = false;
+    var t = setTimeout(function () {
+      if (!done) { done = true; cb(hint); }
+    }, 8000);
+    fetch(SUPABASE_URL + '/auth/v1/health', { headers: { apikey: SUPABASE_ANON_KEY } })
+      .then(function (r) {
+        if (done) return; done = true; clearTimeout(t);
+        cb(r.ok ? '刚才是瞬时网络抖动，现在已能连上服务器——请再点一次「登 录」'
+                : '连接异常（HTTP ' + r.status + '），请截图此页反馈');
+      })
+      .catch(function () {
+        if (done) return; done = true; clearTimeout(t);
+        cb(hint + '\n（已探测：服务器 ' + SUPABASE_URL.replace('https://', '') + ' 无法访问）');
+      });
+  }
   function doLogin(email, pass) {
     var btn = $('btn-login');
     btn.disabled = true; btn.textContent = '登录中…';
     $('login-err').textContent = '';
     backend.signIn(email, pass)
-      .catch(function (e) { $('login-err').textContent = friendlyError(e); })
+      .catch(function (e) {
+        if (isNetErr(e)) diagnoseNet(function (msg) { $('login-err').textContent = msg; });
+        else $('login-err').textContent = friendlyError(e);
+      })
       .then(function () { btn.disabled = false; btn.textContent = '登 录'; });
   }
   $('btn-login').onclick = function () {
